@@ -16,6 +16,12 @@
 
 #include "RecoVertex/VertexTools/interface/GeometricAnnealing.h"
 
+#define cputime
+#ifdef cputime
+#include <chrono>
+typedef std::chrono::duration<int, std::micro> microseconds_type;
+#endif
+
 PrimaryVertexProducer::PrimaryVertexProducer(const edm::ParameterSet& conf)
     : theTTBToken(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))), theConfig(conf) {
   fVerbose = conf.getUntrackedParameter<bool>("verbose", false);
@@ -124,6 +130,8 @@ PrimaryVertexProducer::PrimaryVertexProducer(const edm::ParameterSet& conf)
 
     produces<reco::VertexCollection>(algorithm.label);
   }
+  produces<float>("clusteringCPUtime");
+  produces<std::vector<float>>("extraInfo");
 
   //check if this is a recovery iteration
   fRecoveryIteration = conf.getParameter<bool>("isRecoveryIteration");
@@ -260,13 +268,26 @@ void PrimaryVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup& i
   // select tracks
   std::vector<reco::TransientTrack>&& seltks = theTrackFilter->select(t_tks);
 
+#ifdef cputime
+  auto start_clustering = std::chrono::high_resolution_clock::now();
+#endif
+
   // clusterize tracks in Z
   std::vector<TransientVertex>&& clusters = theTrackClusterizer->vertices(seltks);
+
+#ifdef cputime
+  auto stop_clustering = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<int, std::micro> tcpu_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering - start_clustering);
+#endif
+
+  
+  auto block_boundaries = theTrackClusterizer->get_block_boundaries(seltks);
 
   if (fVerbose) {
     edm::LogPrint("PrimaryVertexProducer")
         << "Clustering returned " << clusters.size() << " clusters from " << seltks.size() << " selected tracks";
   }
+
 
   // vertex fits
   for (std::vector<algo>::const_iterator algorithm = algorithms.begin(); algorithm != algorithms.end(); algorithm++) {
@@ -351,9 +372,20 @@ void PrimaryVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup& i
         }
       }
     }
-
     iEvent.put(std::move(result), algorithm->label);
   }
+
+  
+  auto extraInfo = std::make_unique<std::vector<float>>();
+  for(auto & z : block_boundaries){
+    extraInfo->push_back(z);
+  }
+  iEvent.put(std::move(extraInfo), "extraInfo");
+  
+#ifdef cputime
+  auto clusteringCPUtime = std::make_unique<float>(tcpu_clustering.count() * 1.e-3);
+  iEvent.put(std::move(clusteringCPUtime), "clusteringCPUtime");
+#endif
 }
 
 void PrimaryVertexProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {

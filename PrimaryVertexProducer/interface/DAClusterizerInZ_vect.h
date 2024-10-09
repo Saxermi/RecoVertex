@@ -200,6 +200,10 @@ public:
 
   double beta0(const double betamax, track_t const &tks, vertex_t const &y) const;
   void verify(const vertex_t &v, const track_t &tks, unsigned int nv = 999999, unsigned int nt = 999999) const;
+  
+  // for block clustering evaluation
+  std::vector<float> get_block_boundaries(const std::vector<reco::TransientTrack> &) const override;
+
 
 private:
   double zdumpcenter_;

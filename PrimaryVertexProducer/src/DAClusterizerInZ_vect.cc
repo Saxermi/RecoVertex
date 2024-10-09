@@ -934,6 +934,44 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
   return fill_vertices(beta, rho0, tks, y);
 }
 
+
+std::vector<float> DAClusterizerInZ_vect::get_block_boundaries(const std::vector<reco::TransientTrack>& tracks) const {
+  /* get the block boundaries as used by vertices_in_blocks
+     the code is a direct copy from that method, but does not produce tracklists,
+     it only stores the position of the first and the last track of a block
+  */
+  std::vector<float> values; // two numbers for each block: z of the first and the last track
+  if (tracks.size() == 0) return values;  // don't want to handle this case
+  
+  std::vector<reco::TransientTrack> sorted_tracks;
+  for (unsigned int i = 0; i < tracks.size(); i++) {
+    sorted_tracks.push_back(tracks[i]);
+  }
+  std::sort(sorted_tracks.begin(),
+            sorted_tracks.end(),
+            [](const reco::TransientTrack& a, const reco::TransientTrack& b) -> bool {
+              return (a.stateAtBeamLine().trackStateAtPCA()).position().z() <
+                     (b.stateAtBeamLine().trackStateAtPCA()).position().z();
+            });
+
+  unsigned int nBlocks = (unsigned int)std::floor(sorted_tracks.size() / (block_size_ * (1 - overlap_frac_)));
+  if (nBlocks < 1) {
+    nBlocks = 1;
+  }
+  for (unsigned int block = 0; block < nBlocks; block++) {
+    unsigned int begin = (unsigned int)(block * block_size_ * (1 - overlap_frac_));
+    unsigned int end = (unsigned int)std::min(begin + block_size_, (unsigned int)sorted_tracks.size());
+    // instead of copying the tracks we just note the coordinate of the first and the last one here
+    values.push_back((sorted_tracks[begin].stateAtBeamLine().trackStateAtPCA()).position().z());
+    if (end > 0){
+      values.push_back((sorted_tracks[end-1].stateAtBeamLine().trackStateAtPCA()).position().z());
+    }else{
+      values.push_back(values[0]);
+    }
+  }
+  return values;
+}
+
 vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<reco::TransientTrack>& tracks) const {
   vector<reco::TransientTrack> sorted_tracks;
   vector<pair<float, float>> vertices_tot;  // z, rho for each vertex
