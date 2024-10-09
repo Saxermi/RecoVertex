@@ -19,6 +19,12 @@ public:
   virtual std::vector<TransientVertex> vertices(const std::vector<reco::TransientTrack>& tracks) const = 0;
   virtual std::vector<std::vector<reco::TransientTrack> > clusterize(
       const std::vector<reco::TransientTrack>& tracks) const = 0;
+  // for testing the clustering in blocks only
+  virtual std::vector<float> get_block_boundaries(const std::vector<reco::TransientTrack>& tracks) const{
+    std::vector<float> values;
+    values.push_back(42.);
+    return values;
+  }
 
   virtual ~TrackClusterizerInZ() = default;
 };
