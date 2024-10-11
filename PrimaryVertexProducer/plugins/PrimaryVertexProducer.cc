@@ -375,7 +375,6 @@ void PrimaryVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup& i
     iEvent.put(std::move(result), algorithm->label);
   }
 
-  
   auto extraInfo = std::make_unique<std::vector<float>>();
   for(auto & z : block_boundaries){
     extraInfo->push_back(z);
