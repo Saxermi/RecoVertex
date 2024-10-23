@@ -233,6 +233,8 @@ private:
   bool runInBlocks_;
   unsigned int block_size_;
   double overlap_frac_;
+
+  bool unblock_;
 };
 
 //#ifndef DAClusterizerInZ_vect_h
