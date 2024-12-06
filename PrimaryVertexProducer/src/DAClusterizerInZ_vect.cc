@@ -20,7 +20,7 @@ using namespace std;
 DAClusterizerInZ_vect::DAClusterizerInZ_vect(const edm::ParameterSet& conf) {
   // hardcoded parameters
   maxIterations_ = 1000;
-  mintrkweight_ = 0.6;
+  mintrkweight_ = 0.55;
 
   // configurable debug output
 #ifdef DEBUG
