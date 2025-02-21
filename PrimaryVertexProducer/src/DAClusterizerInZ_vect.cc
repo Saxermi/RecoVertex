@@ -1001,6 +1001,8 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
         << "Warning nBlocks was 0 with ntracks = " << sorted_tracks.size() << " block_size = " << block_size_
         << " and overlap fraction = " << overlap_frac_ << ". Setting nBlocks = 1";
   }
+  //wird auskomentiert ordnet blocks von links nach rechts zu)
+  /*
   for (unsigned int block = 0; block < nBlocks; block++) {
     vector<reco::TransientTrack> block_tracks;
     unsigned int begin = (unsigned int)(block * block_size_ * (1 - overlap_frac_));
@@ -1011,6 +1013,22 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
     if (block_tracks.empty()) {
       continue;
     }
+*/
+// temporarly sorting blocks from the left to the right
+  for (unsigned int block = 0; block < nBlocks; block++) {
+    vector<reco::TransientTrack> block_tracks;
+    unsigned int end = (unsigned int)(sorted_tracks.size() - block * block_size_ * (1 - overlap_frac_));
+  unsigned int begin = (unsigned int)(end < block_size_ ? 0 : end - block_size_);
+    for (unsigned int i = begin; i < end; i++) {
+      block_tracks.push_back(sorted_tracks[i]);
+    }
+    if (block_tracks.empty()) {
+      continue;
+    }
+
+
+
+   
 
 #ifdef DEBUG
     std::cout << "Running vertices_in_blocks on" << std::endl;
