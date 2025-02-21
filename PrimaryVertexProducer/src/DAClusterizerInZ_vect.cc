@@ -944,7 +944,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
   return fill_vertices(beta, rho0, tks, y);
 }
 
-
+// Wolfram implementation of getting blocks, use this in vertices_in_blocks
 std::vector<float> DAClusterizerInZ_vect::get_block_boundaries(const std::vector<reco::TransientTrack>& tracks) const {
   /* get the block boundaries as used by vertices_in_blocks
      the code is a direct copy from that method, but does not produce tracklists,
