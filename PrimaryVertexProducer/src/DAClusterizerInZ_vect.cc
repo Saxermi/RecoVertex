@@ -668,7 +668,7 @@ bool DAClusterizerInZ_vect::split(const double beta, track_t& tks, vertex_t& y, 
   constexpr double epsilon = 1e-3;  // minimum split size
   unsigned int nv = y.getSize();
 
-  // avoid left-right biases by splitting highest Tc first
+  // avoid left-right biases by splitting highest Tc first; Handwavey: Chi-squared to bad then split vertex
 
   std::vector<std::pair<double, unsigned int>> critical;
   for (unsigned int k = 0; k < nv; k++) {
@@ -693,7 +693,7 @@ bool DAClusterizerInZ_vect::split(const double beta, track_t& tks, vertex_t& y, 
     double p2 = 0, z2 = 0, w2 = 0;
     for (unsigned int i = 0; i < nt; i++) {
       if (tks.sum_Z[i] > 1.e-100) {
-        // winner-takes-all, usually overestimates splitting
+        // winner-takes-all, usually overestimates splitting; What does this mean??
         double tl = tks.zpca[i] < y.zvtx[k] ? 1. : 0.;
         double tr = 1. - tl;
 
@@ -704,7 +704,7 @@ bool DAClusterizerInZ_vect::split(const double beta, track_t& tks, vertex_t& y, 
           tl = t / (t + 1.);
           tr = 1 / (t + 1.);
         }
-
+        // calculate distance between the 2 new vertices, this is not constant; handwavey not clear if it helps
         double p = y.rho[k] * tks.tkwt[i] * local_exp(-beta * Eik(tks.zpca[i], y.zvtx[k], tks.dz2[i])) / tks.sum_Z[i];
         double w = p * tks.dz2[i];
         p1 += p * tl;
@@ -784,6 +784,7 @@ bool DAClusterizerInZ_vect::split(const double beta, track_t& tks, vertex_t& y, 
   return split;
 }
 
+// Standard method DA pure
 vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<reco::TransientTrack>& tracks) const {
   track_t&& tks = fill(tracks);
   vector<TransientVertex> clusters;
@@ -796,22 +797,23 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
   vertex_t y;  // the vertex prototypes
 
   // initialize:single vertex at infinite temperature
-  y.addItem(0, 1.0);
+  y.addItem(0, 1.0); // First vertex is set here at z=0
   clear_vtx_range(tks, y);
 
-  // estimate first critical temperature
+  // estimate first critical temperature; betamax = Tmin, beta = 1/T
   double beta = beta0(betamax_, tks, y);
 #ifdef DEBUG
   if (DEBUGLEVEL > 0)
     std::cout << "Beta0 is " << beta << std::endl;
 #endif
 
-  thermalize(beta, tks, y, delta_highT_);
+  thermalize(beta, tks, y, delta_highT_); // Iteration at T=const, takes for-f-ever for high, till stable for clusters
 
   // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
   double betafreeze = betamax_ * sqrt(coolingFactor_);
 
+  // main loop which takes a long time for high T; this runs until stable
   while (beta < betafreeze) {
     while (merge(y, tks, beta)) {
       update(beta, tks, y, rho0, false);
@@ -838,7 +840,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
     set_vtx_range(beta, tks, y);
     update(beta, tks, y, rho0, false);
   }
-
+  // RIght place?; Further cooling post spiltting to get closer to T=1, closer to Gauss-dist
   unsigned int ntry = 0;
   double threshold = 1.0;
   while (split(beta, tks, y, threshold) && (ntry++ < 10)) {
@@ -951,7 +953,7 @@ std::vector<float> DAClusterizerInZ_vect::get_block_boundaries(const std::vector
   std::vector<float> values; // two numbers for each block: z of the first and the last track
   if (tracks.size() == 0) return values;  // don't want to handle this case
   
-  std::vector<reco::TransientTrack> sorted_tracks;
+  std::vector<reco::TransientTrack> sorted_tracks; // Can we change direction here?
   for (unsigned int i = 0; i < tracks.size(); i++) {
     sorted_tracks.push_back(tracks[i]);
   }
@@ -992,7 +994,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
             [](const reco::TransientTrack& a, const reco::TransientTrack& b) -> bool {
               return (a.stateAtBeamLine().trackStateAtPCA()).position().z() <
                      (b.stateAtBeamLine().trackStateAtPCA()).position().z();
-            });
+            }); // change here to reverse sorting order? to test for the weird dip
 
   unsigned int nBlocks = (unsigned int)std::floor(sorted_tracks.size() / (block_size_ * (1 - overlap_frac_)));
   if (nBlocks < 1) {
@@ -1006,7 +1008,9 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
   for (unsigned int block = 0; block < nBlocks; block++) {
     vector<reco::TransientTrack> block_tracks;
     unsigned int begin = (unsigned int)(block * block_size_ * (1 - overlap_frac_));
+    // calculates beginning position of block, block is an integer to this gives the nth block
     unsigned int end = (unsigned int)std::min(begin + block_size_, (unsigned int)sorted_tracks.size());
+    // begin plus blocksize = ending
     for (unsigned int i = begin; i < end; i++) {
       block_tracks.push_back(sorted_tracks[i]);
     }
@@ -1029,6 +1033,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
 
    
+
 
 #ifdef DEBUG
     std::cout << "Running vertices_in_blocks on" << std::endl;
