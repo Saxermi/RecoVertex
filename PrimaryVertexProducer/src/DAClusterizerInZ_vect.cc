@@ -46,7 +46,15 @@ DAClusterizerInZ_vect::DAClusterizerInZ_vect(const edm::ParameterSet& conf) {
   runInBlocks_ = conf.getParameter<bool>("runInBlocks");
   block_size_ = conf.getParameter<unsigned int>("block_size");
   overlap_frac_ = conf.getParameter<double>("overlap_frac");
-
+  // temporary kludge: negative overlap_frac values turn on the unblocking test
+  if (overlap_frac_ < 0){
+    overlap_frac_ = -overlap_frac_;
+    unblock_ = true;
+    std::cout << "DAClusterizerinZ_vect unblocking test enabled " << std::endl;
+  }else{
+    unblock_ = false;
+  }
+  
 #ifdef DEBUG
   std::cout << "DAClusterizerinZ_vect: mintrkweight = " << mintrkweight_ << std::endl;
   std::cout << "DAClusterizerinZ_vect: uniquetrkweight = " << uniquetrkweight_ << std::endl;
@@ -1163,12 +1171,35 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
       dump(beta, y, tks, 2, rho0);
 #endif
 
-    for (unsigned int ivertex = 0; ivertex < y.getSize(); ivertex++) {
-      if (y.zvtx_vec[ivertex] != 0 && y.rho_vec[ivertex] != 0) {
-        vertices_tot.push_back(pair(y.zvtx_vec[ivertex], y.rho_vec[ivertex]));
+    // simple attempt to merge some duplicates in the overlap regions
+    // a better or additional approach might be to do this during the track assignment step based
+    if(unblock_){
+      for (unsigned int ivertex = 0; ivertex < y.getSize(); ivertex++) {
+	if (y.zvtx_vec[ivertex] != 0 && y.rho_vec[ivertex] != 0) {
+	  bool merged = false;
+	  for(auto & vtx : vertices_tot){
+	    if (std::abs(vtx.first - y.zvtx_vec[ivertex]) < 20e-4){ // 20 microns 
+	      double rho_new =  vtx.second  + y.rho_vec[ivertex];
+	      double znew = (vtx.first * vtx.second + y.zvtx_vec[ivertex] * y.rho_vec[ivertex] ) / rho_new;
+	      vtx.first = znew;
+	      vtx.second = rho_new;
+	      merged = true;
+	    }
+	  }
+	  if (! merged){
+	    vertices_tot.push_back(pair(y.zvtx_vec[ivertex], y.rho_vec[ivertex]));
+	  }
+	}
+      }
+    }else{
+      // default code
+      for (unsigned int ivertex = 0; ivertex < y.getSize(); ivertex++) {
+	if (y.zvtx_vec[ivertex] != 0 && y.rho_vec[ivertex] != 0) {
+	  vertices_tot.push_back(pair(y.zvtx_vec[ivertex], y.rho_vec[ivertex]));
 #ifdef DEBUG
-        std::cout << "Found new vertex " << y.zvtx_vec[ivertex] << " , " << y.rho_vec[ivertex] << std::endl;
+	  std::cout << "Found new vertex " << y.zvtx_vec[ivertex] << " , " << y.rho_vec[ivertex] << std::endl;
 #endif
+	}
       }
     }
   }
@@ -1176,7 +1207,9 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
   std::sort(vertices_tot.begin(),
             vertices_tot.end(),
             [](const pair<float, float>& a, const pair<float, float>& b) -> bool { return a.first < b.first; });
+  
 
+  
   // reassign tracks to vertices
   track_t&& tracks_tot = fill(tracks);
   const unsigned int nv = vertices_tot.size();
