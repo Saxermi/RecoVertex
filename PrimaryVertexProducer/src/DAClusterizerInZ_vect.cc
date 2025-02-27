@@ -1018,6 +1018,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
       continue;
     }
 */
+//*
 // temporarly sorting blocks from the left to the right
   for (unsigned int block = 0; block < nBlocks; block++) {
     vector<reco::TransientTrack> block_tracks;
@@ -1029,7 +1030,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
     if (block_tracks.empty()) {
       continue;
     }
-
+//
 
 
    
