@@ -87,8 +87,23 @@ from Configuration.Eras.Modifier_phase2_tracker_cff import phase2_tracker
          )
 )
 
-from Configuration.Eras.Modifier_highBetaStar_2018_cff import highBetaStar_2018
-highBetaStar_2018.toModify(offlinePrimaryVertices,
+#from Configuration.Eras.Modifier_highBetaStar_2018_cff import highBetaStar_2018
+#highBetaStar_2018.toModify(offlinePrimaryVertices,
+#    TkClusParameters = dict(
+#        TkDAClusParameters = dict(
+#            Tmin = 4.0,
+#            Tpurge = 1.0,
+#            Tstop = 1.0,
+#            vertexSize = 0.01,
+#            d0CutOff = 4.,
+#            dzCutOff = 5.,
+#            zmerge = 2.e-2,
+#            uniquetrkweight = 0.9
+#       )
+#    )
+#) # manual fix since the s a fatal exception that highbetastar 2018 cannot be found
+from Configuration.Eras.Modifier_highBetaStar_cff import highBetaStar
+highBetaStar.toModify(offlinePrimaryVertices,
     TkClusParameters = dict(
         TkDAClusParameters = dict(
             Tmin = 4.0,
@@ -161,9 +176,24 @@ from Configuration.ProcessModifiers.pp_on_AA_cff import pp_on_AA
                  )
                )
 )
-
-from Configuration.Eras.Modifier_highBetaStar_2018_cff import highBetaStar_2018
-highBetaStar_2018.toModify(offlinePrimaryVertices,
+#
+#from Configuration.Eras.Modifier_highBetaStar_2018_cff import highBetaStar_2018
+#highBetaStar_2018.toModify(offlinePrimaryVertices,
+#     TkFilterParameters = dict(
+#         maxNormalizedChi2 = 80.0,
+#         minPixelLayersWithHits = 1,
+#         minSiliconLayersWithHits = 3,
+#         maxD0Significance = 7.0,
+#         maxD0Error = 10.0,
+#         maxDzError = 10.0,
+#         maxEta = 2.5
+#     ),
+#     vertexCollections = {
+#         0: dict(chi2cutoff = 4.0, minNdof = -1.1),
+#         1: dict(chi2cutoff = 4.0, minNdof = -2.0),
+#     }
+#)
+highBetaStar.toModify(offlinePrimaryVertices,
      TkFilterParameters = dict(
          maxNormalizedChi2 = 80.0,
          minPixelLayersWithHits = 1,
