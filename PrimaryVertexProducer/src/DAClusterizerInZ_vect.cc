@@ -840,7 +840,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
     set_vtx_range(beta, tks, y);
     update(beta, tks, y, rho0, false);
   }
-  // RIght place?; Further cooling post spiltting to get closer to T=1, closer to Gauss-dist
+  // Right place?; Further cooling post spiltting to get closer to T=1, closer to Gauss-dist
   unsigned int ntry = 0;
   double threshold = 1.0;
   while (split(beta, tks, y, threshold) && (ntry++ < 10)) {
@@ -881,7 +881,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
     dump(beta, y, tks, 2, rho0);
 #endif
 
-  // merge again  (some cluster split by outliers collapse here)
+  // merge again (some cluster split by outliers collapse here)
   while (merge(y, tks, beta)) {
     set_vtx_range(beta, tks, y);
     update(beta, tks, y, rho0, false);
@@ -897,7 +897,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
     dump(beta, y, tks, 2, rho0);
 #endif
 
-  // go down to the purging temperature (if it is lower than tmin)
+  // go down to the purging temperature (if it is lower than Tmin)
   while (beta < betapurge_) {
     beta = min(beta / coolingFactor_, betapurge_);
     thermalize(beta, tks, y, delta_lowT_, rho0);
@@ -924,7 +924,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
   }
 #endif
 
-  // optionally cool some more without doing anything, to make the assignment harder
+  // optionally cool some more without doing anything, to make the track assignment harder (harder = sharper more clear)
   while (beta < betastop_) {
     beta = min(beta / coolingFactor_, betastop_);
     thermalize(beta, tks, y, delta_lowT_, rho0);
@@ -982,6 +982,8 @@ std::vector<float> DAClusterizerInZ_vect::get_block_boundaries(const std::vector
   return values;
 }
 
+
+// DA in blocks
 vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<reco::TransientTrack>& tracks) const {
   vector<reco::TransientTrack> sorted_tracks;
   vector<pair<float, float>> vertices_tot;  // z, rho for each vertex
@@ -989,29 +991,39 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
     sorted_tracks.push_back(tracks[i]);
   }
   double rho0, beta;
-  std::sort(sorted_tracks.begin(),
-            sorted_tracks.end(),
-            [](const reco::TransientTrack& a, const reco::TransientTrack& b) -> bool {
-              return (a.stateAtBeamLine().trackStateAtPCA()).position().z() <
-                     (b.stateAtBeamLine().trackStateAtPCA()).position().z();
-            }); // change here to reverse sorting order? to test for the weird dip
+  auto blockBoundaries = get_block_boundaries(sorted_tracks);  
 
-  unsigned int nBlocks = (unsigned int)std::floor(sorted_tracks.size() / (block_size_ * (1 - overlap_frac_)));
-  if (nBlocks < 1) {
-    nBlocks = 1;
-    edm::LogWarning("DAClusterizerinZ_vect")
-        << "Warning nBlocks was 0 with ntracks = " << sorted_tracks.size() << " block_size = " << block_size_
-        << " and overlap fraction = " << overlap_frac_ << ". Setting nBlocks = 1";
-  }
-  for (unsigned int block = 0; block < nBlocks; block++) {
-    vector<reco::TransientTrack> block_tracks;
-    unsigned int begin = (unsigned int)(block * block_size_ * (1 - overlap_frac_));
-    // calculates beginning position of block, block is an integer to this gives the nth block
-    unsigned int end = (unsigned int)std::min(begin + block_size_, (unsigned int)sorted_tracks.size());
-    // begin plus blocksize = ending
-    for (unsigned int i = begin; i < end; i++) {
+  /* Reneval of code here. THis now gets block boundaries and then works for DA in blocks*/
+
+  for (unsigned int b = 0; b < blockBoundaries.size(); b += 2) {
+    float zBegin = blockBoundaries[b];
+    float zEnd   = blockBoundaries[b+1];
+    
+    // find iBegin as the first track with z >= zBegin
+    // find iEnd   as the first track with z > zEnd
+    auto itBegin = std::lower_bound(
+        sorted_tracks.begin(), sorted_tracks.end(), zBegin,
+        [](auto const& tk, float zVal) {
+            return tk.stateAtBeamLine().trackStateAtPCA().position().z() < zVal;
+        }
+    );
+    auto itEnd = std::upper_bound(
+        sorted_tracks.begin(), sorted_tracks.end(), zEnd,
+        [](float zVal, auto const& tk) {
+            return zVal < tk.stateAtBeamLine().trackStateAtPCA().position().z();
+        }
+    );
+    unsigned int beginIdx = itBegin - sorted_tracks.begin();
+    unsigned int endIdx   = itEnd   - sorted_tracks.begin();
+
+    // gather block tracks
+    std::vector<reco::TransientTrack> block_tracks;
+    block_tracks.reserve(endIdx - beginIdx);
+    for (unsigned int i = beginIdx; i < endIdx; i++) {
+      block_tracks.push_back(sorted_tracks[i]);
       block_tracks.push_back(sorted_tracks[i]);
     }
+
     if (block_tracks.empty()) {
       continue;
     }
