@@ -1253,9 +1253,9 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
 
 #ifdef DEBUG
-    std::cout << "Running vertices_in_blocks on" << std::endl;
-    std::cout << "- block no." << block << " on " << nBlocks << " blocks " << std::endl;
-    std::cout << "- block track size: " << sorted_tracks.size() << " - block size: " << block_size_ << std::endl;
+    //std::cout << "Running vertices_in_blocks on" << std::endl;
+    //std::cout << "- block no." << block << " on " << nBlocks << " blocks " << std::endl;
+    //std::cout << "- block track size: " << sorted_tracks.size() << " - block size: " << block_size_ << std::endl;
 #endif
 
 std::pair<DAClusterizerInZ_vect::vertex_t, double> result = vertices_modular(tracks);
@@ -1407,13 +1407,13 @@ betaVal = result.second;
     //// end of method
 */
 #ifdef DEBUG
-        verify(y, tks);
-    if (DEBUGLEVEL > 0) {
-      std::cout << "DAClusterizerInZSubCluster_vect::vertices :"
-                << "stop cooling at T=" << 1 / betaVal << std::endl;
-    }
-    if (DEBUGLEVEL > 2)
-      dump(betaVal, y, tks, 2, rho0);
+  //      verify(y, tks);
+   // if (DEBUGLEVEL > 0) {
+    //  std::cout << "DAClusterizerInZSubCluster_vect::vertices :"
+    //            << "stop cooling at T=" << 1 / betaVal << std::endl;
+    //}
+    //if (DEBUGLEVEL > 2)
+    //  dump(betaVal, y, tks, 2, rho0);
 #endif
 
     // simple attempt to merge some duplicates in the overlap regions
