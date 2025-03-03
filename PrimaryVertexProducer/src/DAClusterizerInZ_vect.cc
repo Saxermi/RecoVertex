@@ -1149,7 +1149,55 @@ std::pair<DAClusterizerInZ_vect::vertex_t, double> DAClusterizerInZ_vect::vertic
   return { y, beta }; // fill_vertices(beta, rho0, tks, y);
 } // end da modular
 
+//method do update track vertex incdices
+// Assuming vertices_tot is a vector of pairs where .first holds the z-coordinate.
+void updateTrackVertexIndices(
+    unsigned int itrack,
+  vector<pair<float, float>> vertices_tot,
+    unsigned int nv,
+    double sel_zrange,
+    double betaVal,
+    double zrange_min,
+    DAClusterizerInZ_vect::track_t& tracks_tot)
+{
+    double zrange = std::max(sel_zrange / std::sqrt(betaVal * tracks_tot.dz2[itrack]), zrange_min);
+    double zmin = tracks_tot.zpca[itrack] - zrange;
+    unsigned int kmin = std::min(nv - 1, tracks_tot.kmin[itrack]);
 
+    // Find the smallest vertex z that is larger than zmin.
+    if (vertices_tot[kmin].first > zmin) {
+        while ((kmin > 0) && (vertices_tot[kmin - 1].first > zmin)) {
+            kmin--;
+        }
+    } else {
+        while ((kmin < (nv - 1)) && (vertices_tot[kmin].first < zmin)) {
+            kmin++;
+        }
+    }
+
+    double zmax = tracks_tot.zpca[itrack] + zrange;
+    unsigned int kmax = std::min(nv - 1, tracks_tot.kmax[itrack] - 1);
+
+    // Find the largest vertex z that is smaller than zmax.
+    if (vertices_tot[kmax].first < zmax) {
+        while ((kmax < (nv - 1)) && (vertices_tot[kmax + 1].first < zmax)) {
+            kmax++;
+        }
+    } else {
+        while ((kmax > 0) && (vertices_tot[kmax].first > zmax)) {
+            kmax--;
+        }
+    }
+
+    if (kmin <= kmax) {
+        tracks_tot.kmin[itrack] = kmin;
+        tracks_tot.kmax[itrack] = kmax + 1;
+    } else {
+        tracks_tot.kmin[itrack] = std::max(0U, std::min(kmin, kmax));
+        tracks_tot.kmax[itrack] = std::min(nv, std::max(kmin, kmax) + 1);
+    }
+}
+//end update trackvertexindices
 
 
 
@@ -1162,7 +1210,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
   for (unsigned int i = 0; i < tracks.size(); i++) {
     sorted_tracks.push_back(tracks[i]);
   }
-  double rho0,betaVal;
+  double rho0, betaVal = 0.0;
   //, beta = betaval; is now a return value of vertices_modular 
   // we need to give beta and rho usefull values , code works for now but only with artifacts
   auto blockBoundaries = get_block_boundaries(sorted_tracks);  
@@ -1412,7 +1460,13 @@ betaVal = result.second;
   const unsigned int nv = vertices_tot.size();
   const unsigned int nt = tracks_tot.getSize();
 
+
+  
   for (auto itrack = 0U; itrack < nt; ++itrack) {
+        updateTrackVertexIndices(itrack, vertices_tot, nv, sel_zrange_, betaVal, zrange_min_, tracks_tot);
+
+    // this into its own method
+    /*
     double zrange = max(sel_zrange_ / sqrt(betaVal * tracks_tot.dz2[itrack]), zrange_min_);
 
     double zmin = tracks_tot.zpca[itrack] - zrange;
@@ -1449,6 +1503,8 @@ betaVal = result.second;
       tracks_tot.kmin[itrack] = max(0U, min(kmin, kmax));
       tracks_tot.kmax[itrack] = min(nv, max(kmin, kmax) + 1);
     }
+      */
+
   }
 
 
@@ -1521,7 +1577,7 @@ betaVal = result.second;
       vertexTracks.clear();
     }
   }
-  cout << "this is betaval" << betaVal << std::endl;
+  std::cout << "this is betaval" << betaVal << std::endl;
   return clusters;
 }  // end of vertices_in_blocks
 
