@@ -1102,7 +1102,10 @@ for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
 
 // (re)defining variables to fit to classic da
 vertex_t y;  // the vertex prototypes
+
 y = combined_vertex_prototypes;
+cout << "size before" << y.getSize() << std::endl;
+
 vector<TransientVertex> clusters;
  track_t tks = fill(sorted_tracks); // track_t&& doesent work it then says out of scope for while merge loop
 
@@ -1130,6 +1133,7 @@ while (beta < betafreeze)
   thermalize(beta, tks, y, delta_highT_);
   }
 cout << "made it trough the second loop" << std::endl;
+cout << "size after" << y.getSize() << std::endl;
 
 #ifdef DEBUG
     verify(y, tks);
@@ -1140,14 +1144,66 @@ cout << "made it trough the second loop" << std::endl;
     }
 #endif
 
+  set_vtx_range(beta, tks, y);
+  update(beta, tks, y, rho0, false);
+
+  while (merge(y, tks, beta)) {
+    set_vtx_range(beta, tks, y);
+    update(beta, tks, y, rho0, false);
+  }
+  // Right place?; Further cooling post spiltting to get closer to T=1, closer to Gauss-dist
+  unsigned int ntry = 0;
+  double threshold = 1.0;
+  while (split(beta, tks, y, threshold) && (ntry++ < 10)) {
+    thermalize(beta, tks, y, delta_highT_, rho0);  // rho0 = 0. here
+    while (merge(y, tks, beta)) {
+      update(beta, tks, y, rho0, false);
+    }
+
+    // relax splitting a bit to reduce multiple split-merge cycles of the same cluster
+    threshold *= 1.1;
+  }
+
+  // switch on outlier rejection at T=Tmin
+  if (dzCutOff_ > 0) {
+    rho0 = y.getSize() > 1 ? 1. / y.getSize() : 1.;
+    for (unsigned int a = 0; a < 5; a++) {
+      update(beta, tks, y, a * rho0 / 5.);  // adiabatic turn-on
+    }
+  }
+
+  thermalize(beta, tks, y, delta_lowT_, rho0);
+
+  // merge again (some cluster split by outliers collapse here)
+  while (merge(y, tks, beta)) {
+    set_vtx_range(beta, tks, y);
+    update(beta, tks, y, rho0, false);
+  }
+  // go down to the purging temperature (if it is lower than Tmin)
+  while (beta < betapurge_) {
+    beta = min(beta / coolingFactor_, betapurge_);
+    thermalize(beta, tks, y, delta_lowT_, rho0);
+  }
+
+  // eliminate insignificant vertices, this is more restrictive at higher T
+  while (purge(y, tks, rho0, beta)) {
+    thermalize(beta, tks, y, delta_lowT_, rho0);
+  }
+
+  // optionally cool some more without doing anything, to make the track assignment harder (harder = sharper more clear)
+  while (beta < betastop_) {
+    beta = min(beta / coolingFactor_, betastop_);
+    thermalize(beta, tks, y, delta_lowT_, rho0);
+  }
 
 
 
 
+cout << "size at the end" << y.getSize() << std::endl;
 
 
 
-
+  return fill_vertices(beta, rho0, tks, y);
 
 /*
     set_vtx_range(beta, tks, y);
@@ -1408,7 +1464,7 @@ cout << "made it trough the second loop" << std::endl;
 
 
 
-  return clusters;
+ // return clusters;
 
 }  // end of vertices_in_blocks
 
