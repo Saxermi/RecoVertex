@@ -177,6 +177,8 @@ public:
 
   std::vector<TransientVertex> vertices(const std::vector<reco::TransientTrack> &tracks) const override;
   std::vector<TransientVertex> vertices_no_blocks(const std::vector<reco::TransientTrack> &tracks) const;
+  std::vector<TransientVertex> vertices_no_blocks_hybrid(const std::vector<reco::TransientTrack> &tracks) const;
+
   std::vector<TransientVertex> vertices_in_blocks(const std::vector<reco::TransientTrack> &tracks) const;
   std::vector<TransientVertex> fill_vertices(double beta, double rho0, track_t &tracks, vertex_t &vertices) const;
 

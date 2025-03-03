@@ -822,6 +822,9 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
 
     beta = beta / coolingFactor_;
     thermalize(beta, tks, y, delta_highT_);
+          cout << "beta is" << beta << std::endl;
+      cout << "betafreeze is" << betafreeze << std::endl;
+
   }
 
 #ifdef DEBUG
@@ -985,16 +988,25 @@ std::vector<float> DAClusterizerInZ_vect::get_block_boundaries(const std::vector
 
 // DA in blocks
 vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<reco::TransientTrack>& tracks) const {
-  vector<reco::TransientTrack> sorted_tracks;
+
+
+
+
+  vector<reco::TransientTrack> sorted_tracks; // initalizes empty vectors and coppies all tracks into it
   vector<pair<float, float>> vertices_tot;  // z, rho for each vertex
-  for (unsigned int i = 0; i < tracks.size(); i++) {
-    sorted_tracks.push_back(tracks[i]);
+
+// using this vector we collect all vertices protoypes form 
+vertex_t combined_vertex_prototypes;
+
+for (unsigned int i = 0; i < tracks.size(); i++)
+{
+  sorted_tracks.push_back(tracks[i]);
   }
-  double rho0, beta;
+  double rho0, beta; // get blocborders
   auto blockBoundaries = get_block_boundaries(sorted_tracks);  
 
   /* Reneval of code here. THis now gets block boundaries and then works for DA in blocks*/
-
+  // iterates over each block defined in blocboundaries for each block it finds the range of tracks that fall into it and collects those tracks
   for (unsigned int b = 0; b < blockBoundaries.size(); b += 2) {
     float zBegin = blockBoundaries[b];
     float zEnd   = blockBoundaries[b+1];
@@ -1056,16 +1068,68 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double betafreeze = betamax_ * sqrt(coolingFactor_);
-    while (beta < betafreeze) {
-      while (merge(y, tks, beta)) {
+    double betafreeze = 0.05; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    int iterations = 0;
+    while (beta < betafreeze)
+    {
+      iterations++;
+      while (merge(y, tks, beta))
+      {
         update(beta, tks, y, rho0, false);
       }
       split(beta, tks, y);
+      cout << "iteration is " << iterations << std::endl;
+      cout << "beta is" << beta << std::endl;
+      cout << "betafreeze is" << betafreeze << std::endl;
 
       beta = beta / coolingFactor_;
       thermalize(beta, tks, y, delta_highT_);
     }
+    // store vertex prototypes of the processed block
+        // Add the refined vertex prototypes for this block to the combined vertex prototype
+    for (unsigned int i = 0; i < y.getSize(); ++i) {
+        combined_vertex_prototypes.addItem(y.zvtx_vec[i], y.rho_vec[i]);
+    }
+
+// closes  loop starting 1005
+  }
+// Output the combined vertex prototype's cluster positions
+std::cout << "Combined Vertex Prototype Cluster Positions:" << std::endl;
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
+    std::cout << "Cluster " << i << ": z = " << combined_vertex_prototypes.zvtx_vec[i]
+              << ", rho = " << combined_vertex_prototypes.rho_vec[i] << std::endl;
+}
+
+// (re)defining variables to fit to classic da
+vertex_t y;  // the vertex prototypes
+y = combined_vertex_prototypes;
+vector<TransientVertex> clusters;
+ track_t tks = fill(sorted_tracks); // track_t&& doesent work it then says out of scope for while merge loop
+
+ if (tks.getSize() == 0){
+    return clusters;
+ }
+// insert da global code here
+
+// global annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
+
+double betafreeze = betamax_ * sqrt(coolingFactor_);
+cout << "made it to the second loop" << std::endl;
+// main loop which takes a long time for high T; this runs until stable
+while (beta < betafreeze)
+{
+  while (merge(y, tks, beta))
+  {
+    update(beta, tks, y, rho0, false);
+  }
+  split(beta, tks, y);
+       cout << "beta is" << beta << std::endl;
+      cout << "betafreeze is" << betafreeze << std::endl;
+
+  beta = beta / coolingFactor_;
+  thermalize(beta, tks, y, delta_highT_);
+  }
+cout << "made it trough the second loop" << std::endl;
 
 #ifdef DEBUG
     verify(y, tks);
@@ -1076,6 +1140,16 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
     }
 #endif
 
+
+
+
+
+
+
+
+
+
+/*
     set_vtx_range(beta, tks, y);
     update(beta, tks, y, rho0, false);
 
@@ -1330,9 +1404,17 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
       vertexTracks.clear();
     }
   }
+  */
+
+
 
   return clusters;
+
 }  // end of vertices_in_blocks
+
+
+
+
 
 vector<TransientVertex> DAClusterizerInZ_vect::fill_vertices(double beta, double rho0, track_t& tks, vertex_t& y) const {
   // select significant tracks and use a TransientVertex as a container
