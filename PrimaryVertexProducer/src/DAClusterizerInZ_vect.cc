@@ -9,6 +9,9 @@
 #include <iomanip>
 #include "FWCore/Utilities/interface/isFinite.h"
 #include "vdt/vdtMath.h"
+// using this for debugging
+#include <chrono>
+typedef std::chrono::duration<int, std::micro> microseconds_type;
 
 using namespace std;
 
@@ -989,7 +992,7 @@ std::vector<float> DAClusterizerInZ_vect::get_block_boundaries(const std::vector
 // DA in blocks
 vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<reco::TransientTrack>& tracks) const {
 
-
+  cout<<"running in blocks"<<std::endl;
 
 
   vector<reco::TransientTrack> sorted_tracks; // initalizes empty vectors and coppies all tracks into it
@@ -1004,7 +1007,8 @@ for (unsigned int i = 0; i < tracks.size(); i++)
   }
   double rho0, beta; // get blocborders
   auto blockBoundaries = get_block_boundaries(sorted_tracks);  
-
+  // starting timer for clustering in blocks
+    auto start_clustering_first_loop = std::chrono::high_resolution_clock::now();
   /* Reneval of code here. THis now gets block boundaries and then works for DA in blocks*/
   // iterates over each block defined in blocboundaries for each block it finds the range of tracks that fall into it and collects those tracks
   for (unsigned int b = 0; b < blockBoundaries.size(); b += 2) {
@@ -1031,6 +1035,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
     // gather block tracks
     std::vector<reco::TransientTrack> block_tracks;
     block_tracks.reserve(endIdx - beginIdx);
+  
     for (unsigned int i = beginIdx; i < endIdx; i++) {
       block_tracks.push_back(sorted_tracks[i]);
       block_tracks.push_back(sorted_tracks[i]);
@@ -1070,6 +1075,8 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     double betafreeze = 0.05; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
+
+
     while (beta < betafreeze)
     {
       iterations++;
@@ -1093,12 +1100,18 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
 // closes  loop starting 1005
   }
+  auto stop_clustering_first_loop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> first_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_first_loop - start_clustering_first_loop);
+std::cout<<"the first loop clustering took:"<< first_loop_clustering.count() << std::endl;
+
+
 // Output the combined vertex prototype's cluster positions
-std::cout << "Combined Vertex Prototype Cluster Positions:" << std::endl;
-for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
-    std::cout << "Cluster " << i << ": z = " << combined_vertex_prototypes.zvtx_vec[i]
-              << ", rho = " << combined_vertex_prototypes.rho_vec[i] << std::endl;
-}
+//std::cout << "Combined Vertex Prototype Cluster Positions:" << std::endl;
+//for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
+ //   std::cout << "Cluster " << i << ": z = " << combined_vertex_prototypes.zvtx_vec[i]
+ //             << ", rho = " << combined_vertex_prototypes.rho_vec[i] << std::endl;
+//}
 
 // (re)defining variables to fit to classic da
 vertex_t y;  // the vertex prototypes
@@ -1112,12 +1125,23 @@ vector<TransientVertex> clusters;
  if (tks.getSize() == 0){
     return clusters;
  }
+
+
+
+
+
+#ifdef cputime
+  auto stop_clustering = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<int, std::micro> tcpu_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering - start_clustering);
+#endif
 // insert da global code here
 
 // global annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
 double betafreeze = betamax_ * sqrt(coolingFactor_);
 cout << "made it to the second loop" << std::endl;
+    auto start_clustering_second_loop = std::chrono::high_resolution_clock::now();
+
 // main loop which takes a long time for high T; this runs until stable
 while (beta < betafreeze)
 {
@@ -1132,6 +1156,10 @@ while (beta < betafreeze)
   beta = beta / coolingFactor_;
   thermalize(beta, tks, y, delta_highT_);
   }
+    auto stop_clustering_second_loop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> second_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_second_loop - start_clustering_second_loop);
+std::cout<<"the first loop clustering took:"<< first_loop_clustering.count() << std::endl;
 cout << "made it trough the second loop" << std::endl;
 cout << "size after" << y.getSize() << std::endl;
 
