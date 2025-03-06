@@ -1103,7 +1103,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
   auto stop_clustering_first_loop = std::chrono::high_resolution_clock::now();
 
   std::chrono::duration<int, std::micro> first_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_first_loop - start_clustering_first_loop);
-std::cout<<"the first loop clustering took:"<< first_loop_clustering.count() << std::endl;
+std::cout<<"the first loop clustering took ms:"<< first_loop_clustering.count() << std::endl;
 
 
 // Output the combined vertex prototype's cluster positions
@@ -1159,7 +1159,7 @@ while (beta < betafreeze)
     auto stop_clustering_second_loop = std::chrono::high_resolution_clock::now();
 
   std::chrono::duration<int, std::micro> second_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_second_loop - start_clustering_second_loop);
-std::cout<<"the first loop clustering took:"<< first_loop_clustering.count() << std::endl;
+std::cout<<"the the second loop clustering took ms :"<< second_loop_clustering.count() << std::endl;
 cout << "made it trough the second loop" << std::endl;
 cout << "size after" << y.getSize() << std::endl;
 
@@ -1179,6 +1179,9 @@ cout << "size after" << y.getSize() << std::endl;
     set_vtx_range(beta, tks, y);
     update(beta, tks, y, rho0, false);
   }
+    auto further_cooling_timer_start = std::chrono::high_resolution_clock::now();
+
+
   // Right place?; Further cooling post spiltting to get closer to T=1, closer to Gauss-dist
   unsigned int ntry = 0;
   double threshold = 1.0;
@@ -1191,6 +1194,11 @@ cout << "size after" << y.getSize() << std::endl;
     // relax splitting a bit to reduce multiple split-merge cycles of the same cluster
     threshold *= 1.1;
   }
+      auto further_cooling_timer_stop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> further_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(further_cooling_timer_stop - further_cooling_timer_start);
+std::cout<<"further cooling took ms :"<< further_loop_clustering.count() << std::endl;
+    auto final_cooling_start = std::chrono::high_resolution_clock::now();
 
   // switch on outlier rejection at T=Tmin
   if (dzCutOff_ > 0) {
@@ -1225,8 +1233,11 @@ cout << "size after" << y.getSize() << std::endl;
   }
 
 
+    auto final_cooling_stop = std::chrono::high_resolution_clock::now();
 
 
+  std::chrono::duration<int, std::micro> final_cooling_clustering = std::chrono::duration_cast<std::chrono::microseconds>(final_cooling_stop - final_cooling_start);
+std::cout<<"final cooling took ms :"<< final_cooling_clustering.count() << std::endl;
 cout << "size at the end" << y.getSize() << std::endl;
 
 
