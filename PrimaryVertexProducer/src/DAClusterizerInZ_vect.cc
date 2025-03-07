@@ -1130,10 +1130,10 @@ for (unsigned int i = 0; i < tracks.size(); i++)
     block_tracks.reserve(endIdx - beginIdx);
   
     for (unsigned int i = beginIdx; i < endIdx; i++) {
-      block_tracks.push_back(sorted_tracks[i]);
-      block_tracks.push_back(sorted_tracks[i]); // vielleicht mal weglassen?
+      block_tracks.push_back(sorted_tracks[i]); // 
+      block_tracks.push_back(sorted_tracks[i]); // vielleicht mal weglassen? // apparently this is used to increase weight eg its a weighting method and should be left in place
     }
-
+// maybe further discuss this above conclusion wether or not this makes sense???
     if (block_tracks.empty()) {
       continue;
     }
@@ -1166,7 +1166,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double betafreeze = 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double betafreeze = 0.75; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
@@ -1190,7 +1190,10 @@ for (unsigned int i = 0; i < tracks.size(); i++)
     for (unsigned int i = 0; i < y.getSize(); ++i) {
         combined_vertex_prototypes.addItem(y.zvtx_vec[i], y.rho_vec[i]);
     }
+// what if we thermalize ombined_vertex_prototypes now?
 
+
+std::cout<<"and the following niter"<<iterations << std::endl;
 // closes  loop starting 1005
   }
   auto stop_clustering_first_loop = std::chrono::high_resolution_clock::now();
@@ -1233,6 +1236,10 @@ vector<TransientVertex> clusters;
   auto thermalizing_inbetween_loop_start = std::chrono::high_resolution_clock::now();
 
     thermalize(beta, tks, y, delta_highT_);
+     while (merge(y, tks, beta))
+    {
+      update(beta, tks, y, rho0, false); // check update method again wether merging done correctly
+    } // merging after thermalizing
   auto thermalizing_inbetween_loop_stop = std::chrono::high_resolution_clock::now();
 
   std::chrono::duration<int, std::micro> thermalize_inbetween_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(thermalizing_inbetween_loop_stop - thermalizing_inbetween_loop_start);
