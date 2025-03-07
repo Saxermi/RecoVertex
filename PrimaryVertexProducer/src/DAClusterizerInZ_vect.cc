@@ -1166,7 +1166,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double betafreeze = 0.1; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double betafreeze = 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
@@ -1211,7 +1211,7 @@ vertex_t y;  // the vertex prototypes
 
 y = combined_vertex_prototypes;
 cout << "size before" << y.getSize() << std::endl;
-oss << "Annealing in blocks;" << first_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+oss << "Annealing_in_blocks;" << first_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
 
 
 vector<TransientVertex> clusters;
@@ -1237,7 +1237,7 @@ vector<TransientVertex> clusters;
 
   std::chrono::duration<int, std::micro> thermalize_inbetween_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(thermalizing_inbetween_loop_stop - thermalizing_inbetween_loop_start);
 std::cout<<"thermalizing innbetween took ms:"<< thermalize_inbetween_loop_clustering.count() << std::endl;
-oss << "thermalizing between loops;" << thermalize_inbetween_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+oss << "thermalizing_between_loops;" << thermalize_inbetween_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
 
 
 // insert da global code here
