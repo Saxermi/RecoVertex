@@ -1093,7 +1093,7 @@ oss << "Checkpoint;Time it took (microseconds); Number of clusters after checkpo
 
 // using this vector we collect all vertices protoypes form 
 vertex_t combined_vertex_prototypes;
-
+double betasave = 0.0;
 for (unsigned int i = 0; i < tracks.size(); i++)
 {
   sorted_tracks.push_back(tracks[i]);
@@ -1157,6 +1157,8 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // estimate first critical temperature
     beta = beta0(betamax_, tks, y);
+      cout << "beta before 1 loop" << beta<< std::endl;
+
 #ifdef DEBUG
     if (DEBUGLEVEL > 0)
       std::cout << "Beta0 is " << beta << std::endl;
@@ -1166,7 +1168,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double betafreeze = 0.75; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double betafreeze = 1.e-5; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
@@ -1178,9 +1180,9 @@ for (unsigned int i = 0; i < tracks.size(); i++)
         update(beta, tks, y, rho0, false);
       }
       split(beta, tks, y);
-      cout << "iteration is " << iterations << std::endl;
-      cout << "beta is" << beta << std::endl;
-      cout << "betafreeze is" << betafreeze << std::endl;
+     // cout << "iteration is " << iterations << std::endl;
+    //  cout << "beta is" << beta << std::endl;
+    //  cout << "betafreeze is" << betafreeze << std::endl;
 
       beta = beta / coolingFactor_;
       thermalize(beta, tks, y, delta_highT_);
@@ -1190,11 +1192,12 @@ for (unsigned int i = 0; i < tracks.size(); i++)
     for (unsigned int i = 0; i < y.getSize(); ++i) {
         combined_vertex_prototypes.addItem(y.zvtx_vec[i], y.rho_vec[i]);
     }
-// what if we thermalize ombined_vertex_prototypes now?
 
+    betasave = beta;
+    // what if we thermalize ombined_vertex_prototypes now?
 
-std::cout<<"and the following niter"<<iterations << std::endl;
-// closes  loop starting 1005
+    std::cout << "and the following niter" << iterations << std::endl;
+    // closes  loop starting 1005
   }
   auto stop_clustering_first_loop = std::chrono::high_resolution_clock::now();
 
@@ -1232,6 +1235,9 @@ vector<TransientVertex> clusters;
   auto stop_clustering = std::chrono::high_resolution_clock::now();
   std::chrono::duration<int, std::micro> tcpu_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering - start_clustering);
 #endif
+
+
+/* thermalization not necessary at such high temperatures
 //trying to thermalize
   auto thermalizing_inbetween_loop_start = std::chrono::high_resolution_clock::now();
 
@@ -1246,15 +1252,18 @@ vector<TransientVertex> clusters;
 std::cout<<"thermalizing innbetween took ms:"<< thermalize_inbetween_loop_clustering.count() << std::endl;
 oss << "thermalizing_between_loops;" << thermalize_inbetween_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
 
-
+*/ 
 // insert da global code here
 
 // global annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 //hardcoding beta to 0.005 not sure if this is necessary but maybe?
-  cout << "beta before" << beta<< std::endl;
+  //
 
-  //beta = 0.005;
-  double betafreeze = betamax_ * sqrt(coolingFactor_);
+  beta = betasave; //*0.5;
+  cout << "beta before 2 loop" << beta << std::endl;
+
+  // beta = 0.005;
+  double betafreeze =  betamax_ * sqrt(coolingFactor_);/// betamax_ * sqrt(coolingFactor_);
   cout << "betafreeze second loop" << betafreeze << std::endl;
   cout << "made it to the second loop" << std::endl;
   auto start_clustering_second_loop = std::chrono::high_resolution_clock::now();
@@ -1288,6 +1297,22 @@ oss << "global Annealing;" << second_loop_clustering.count() << ";" << y.getSize
                 << "last round of splitting" << std::endl;
     }
 #endif
+
+
+
+//trying to thermalize
+  auto thermalizing_after_loop_start = std::chrono::high_resolution_clock::now();
+
+    thermalize(beta, tks, y, delta_highT_);
+     while (merge(y, tks, beta))
+    {
+      update(beta, tks, y, rho0, false); // check update method again wether merging done correctly
+    } // merging after thermalizing
+  auto thermalizing_after_loop_stop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> thermalize_after_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(thermalizing_after_loop_stop - thermalizing_after_loop_start);
+std::cout<<"thermalizing after loops took ms:"<< thermalize_after_loop_clustering.count() << std::endl;
+oss << "thermalizing_after_loops;" << thermalize_after_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
 
   set_vtx_range(beta, tks, y);
   update(beta, tks, y, rho0, false);
