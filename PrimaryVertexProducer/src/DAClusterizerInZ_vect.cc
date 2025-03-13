@@ -1170,7 +1170,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double betafreeze = 2.5e-5; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double betafreeze = 1e-5; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
@@ -1239,7 +1239,7 @@ vector<TransientVertex> clusters;
 #endif
 
 
-/* thermalization not necessary at such high temperatures
+///* thermalization not necessary at such high temperatures
 //trying to thermalize
   auto thermalizing_inbetween_loop_start = std::chrono::high_resolution_clock::now();
 
@@ -1254,14 +1254,14 @@ vector<TransientVertex> clusters;
 std::cout<<"thermalizing innbetween took ms:"<< thermalize_inbetween_loop_clustering.count() << std::endl;
 oss << "thermalizing_between_loops;" << thermalize_inbetween_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
 
-*/ 
+//*/// 
 // insert da global code here
 
 // global annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 //hardcoding beta to 0.005 not sure if this is necessary but maybe?
   //
 
-  beta = betasave; //*0.5;
+  beta = betasave *0.9; //*0.5;
   cout << "beta before 2 loop" << beta << std::endl;
 
   // beta = 0.005;
