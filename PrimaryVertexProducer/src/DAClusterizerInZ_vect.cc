@@ -1090,6 +1090,8 @@ oss << "Checkpoint;Time it took (microseconds); Number of clusters after checkpo
 
   vector<reco::TransientTrack> sorted_tracks; // initalizes empty vectors and coppies all tracks into it
   vector<pair<float, float>> vertices_tot;  // z, rho for each vertex
+//timing the entire thing
+  auto start_overall_timing = std::chrono::high_resolution_clock::now();
 
 // using this vector we collect all vertices protoypes form 
 vertex_t combined_vertex_prototypes;
@@ -1168,7 +1170,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double betafreeze = 1.e-5; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double betafreeze = 2.5e-5; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
@@ -1409,6 +1411,15 @@ oss << "some more cooling;" << cool_some_more_duration.count() << ";" << y.getSi
   std::chrono::duration<int, std::micro> final_cooling_clustering = std::chrono::duration_cast<std::chrono::microseconds>(final_cooling_stop - final_cooling_start);
 std::cout<<"total time cooling took ms :"<< final_cooling_clustering.count() << std::endl;
 cout << "size at the end" << y.getSize() << std::endl;
+
+
+  auto stop_overall_timing = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> overall_time = std::chrono::duration_cast<std::chrono::microseconds>(stop_overall_timing - start_overall_timing);
+oss << "final time and size;" << overall_time.count() << ";" << y.getSize() << ";none" << std::endl;
+
+
+
 
 daten_csv<< oss.str();
 
