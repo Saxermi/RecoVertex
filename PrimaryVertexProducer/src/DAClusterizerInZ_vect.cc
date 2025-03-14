@@ -1172,7 +1172,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double betafreeze = 1e-5; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double betafreeze = 2e-5; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
