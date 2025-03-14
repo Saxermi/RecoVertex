@@ -1079,7 +1079,7 @@ if (!daten_csv.is_open()) {
     std::cerr << "Failed to open " << filename << std::endl;
 }
 std::ostringstream oss;
-oss << "Current date and time: " << std::asctime(now_tm) << "running the vertices in blocks method" << std::endl;
+oss << "Current date and time: " << std::asctime(now_tm) << "running the verticest in blocks method" << std::endl;
 oss << "Checkpoint;Time it took (microseconds); Number of clusters after checkpoint; comment" << std::endl;
 
 
@@ -1172,7 +1172,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double betafreeze = 1e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double betafreeze = 1e-5; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
