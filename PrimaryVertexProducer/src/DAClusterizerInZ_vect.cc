@@ -1136,7 +1136,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
     for (unsigned int i = beginIdx; i < endIdx; i++) {
       block_tracks.push_back(sorted_tracks[i]); // 
       block_tracks.push_back(sorted_tracks[i]); // vielleicht mal weglassen? // apparently this is used to increase weight eg its a weighting method and should be left in place
-    }
+    } // left the second line away in exp26, exclude permanently if its shown to make no difference
 // maybe further discuss this above conclusion wether or not this makes sense???
     if (block_tracks.empty()) {
       continue;
@@ -1172,11 +1172,11 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double betafreeze = 1e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double firstbestastop = 5e-5; // betamax_ * sqrt(coolingFactor_)*0.8;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
-    while (beta < betafreeze)
+    while (beta < firstbestastop)
     {
       iterations++;
       while (merge(y, tks, beta))
@@ -1267,13 +1267,13 @@ oss << "thermalizing_between_loops;" << thermalize_inbetween_loop_clustering.cou
   cout << "beta before 2 loop" << beta << std::endl;
 
   // beta = 0.005;
-  double betafreeze =  betamax_ * sqrt(coolingFactor_);/// betamax_ * sqrt(coolingFactor_);
-  cout << "betafreeze second loop" << betafreeze << std::endl;
+  double secondbestastop =  betamax_ * sqrt(coolingFactor_);/// betamax_ * sqrt(coolingFactor_);
+  cout << "betafreeze second loop" << secondbestastop << std::endl;
   cout << "made it to the second loop" << std::endl;
   auto start_clustering_second_loop = std::chrono::high_resolution_clock::now();
 
   // main loop which takes a long time for high T; this runs until stable
-  while (beta < betafreeze)
+  while (beta < secondbestastop)
   {
     while (merge(y, tks, beta))
     {
@@ -1281,7 +1281,7 @@ oss << "thermalizing_between_loops;" << thermalize_inbetween_loop_clustering.cou
     }
     split(beta, tks, y);
     cout << "beta is" << beta << std::endl;
-    cout << "betafreeze is" << betafreeze << std::endl;
+    cout << "secondbestastop is" << secondbestastop << std::endl;
 
     beta = beta / coolingFactor_;
     thermalize(beta, tks, y, delta_highT_);
@@ -1317,7 +1317,7 @@ oss << "global Annealing;" << second_loop_clustering.count() << ";" << y.getSize
   std::chrono::duration<int, std::micro> thermalize_after_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(thermalizing_after_loop_stop - thermalizing_after_loop_start);
 std::cout<<"thermalizing after loops took ms:"<< thermalize_after_loop_clustering.count() << std::endl;
 oss << "thermalizing_after_loops;" << thermalize_after_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
-
+///*
   set_vtx_range(beta, tks, y);
   update(beta, tks, y, rho0, false);
 
@@ -1325,6 +1325,9 @@ oss << "thermalizing_after_loops;" << thermalize_after_loop_clustering.count() <
     set_vtx_range(beta, tks, y);
     update(beta, tks, y, rho0, false);
   }
+    //propably uncesseracy code, testing impact of it in exp27 if non is visble 
+
+  //*/
     auto further_cooling_timer_start = std::chrono::high_resolution_clock::now();
 
 
