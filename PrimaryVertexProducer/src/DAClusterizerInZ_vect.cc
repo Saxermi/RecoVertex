@@ -815,6 +815,19 @@ std::ostringstream oss;
 oss << "Current date and time: " << std::asctime(now_tm) << "running the vertices in  no blocks method" << std::endl;
 oss << "Checkpoint;Time it took (microseconds); Number of clusters after checkpoint; comment" << std::endl;
 
+const std::string base_filename_dump = "clusters_";
+std::string filename_cluster = directory + base_filename_dump + buffer + ".csv";
+std::ofstream daten_cluster(filename_cluster, std::ios::app);
+if(!daten_cluster.is_open()){
+
+  std::cerr << "failed to open" << filename_cluster << std::endl;
+}
+std::ostringstream oss_cluster;
+oss_cluster << "Current date and time: " << std::asctime(now_tm) << "running the verticest in blocks method" << std::endl;
+oss_cluster << "checkpoint ;cluster number; z position;roh" << std::endl;
+
+// csv end
+
 
 
 
@@ -869,6 +882,13 @@ std::cout<<"the the second loop clustering took ms :"<< second_loop_clustering.c
 cout << "made it trough the second loop" << std::endl;
 cout << "size after second loop" << y.getSize() << std::endl;
 oss << "global Annealing;" << second_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+
+for (unsigned int  i = 0; i < y.getSize(); ++i)
+{
+      oss_cluster << "loop2;" << i << ";" << y.zvtx_vec[i] << ";" << y.rho_vec[i] << std::endl;
+
+}
+
 
 #ifdef DEBUG
   verify(y, tks);
@@ -1013,6 +1033,9 @@ oss << "some more cooling;" << cool_some_more_duration.count() << ";" << y.getSi
   if (DEBUGLEVEL > 2)
     dump(beta, y, tks, 2, rho0);
 #endif
+daten_cluster << oss_cluster.str();
+daten_cluster.close();
+
 daten_csv<< oss.str();
 
 daten_csv.close();
@@ -1082,15 +1105,27 @@ std::ostringstream oss;
 oss << "Current date and time: " << std::asctime(now_tm) << "running the verticest in blocks method" << std::endl;
 oss << "Checkpoint;Time it took (microseconds); Number of clusters after checkpoint; comment" << std::endl;
 
+const std::string base_filename_dump = "clusters_";
+std::string filename_cluster = directory + base_filename_dump + buffer + ".csv";
+std::ofstream daten_cluster(filename_cluster, std::ios::app);
+if(!daten_cluster.is_open()){
 
-//csv end
+  std::cerr << "failed to open" << filename_cluster << std::endl;
+}
+std::ostringstream oss_cluster;
+oss_cluster << "Current date and time: " << std::asctime(now_tm) << "running the verticest in blocks method" << std::endl;
+oss_cluster << "checkpoint ;cluster number; z position;roh" << std::endl;
+
+// csv end
 
 
-  cout<<"running in blocks"<<std::endl;
 
 
-  vector<reco::TransientTrack> sorted_tracks; // initalizes empty vectors and coppies all tracks into it
-  vector<pair<float, float>> vertices_tot;  // z, rho for each vertex
+
+cout << "running in blocks" << std::endl;
+
+vector<reco::TransientTrack> sorted_tracks; // initalizes empty vectors and coppies all tracks into it
+vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
 //timing the entire thing
   auto start_overall_timing = std::chrono::high_resolution_clock::now();
 
@@ -1172,7 +1207,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double firstbestastop = 2e-5; // betamax_ * sqrt(coolingFactor_)*0.8;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double firstbestastop = 1e-5; // betamax_ * sqrt(coolingFactor_)*0.8;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
@@ -1211,10 +1246,13 @@ std::cout<<"the first loop clustering took ms:"<< first_loop_clustering.count() 
 
 // Output the combined vertex prototype's cluster positions
 //std::cout << "Combined Vertex Prototype Cluster Positions:" << std::endl;
-//for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
- //   std::cout << "Cluster " << i << ": z = " << combined_vertex_prototypes.zvtx_vec[i]
- //             << ", rho = " << combined_vertex_prototypes.rho_vec[i] << std::endl;
-//}
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
+  //  std::cout << "Cluster " << i << ": z = " << combined_vertex_prototypes.zvtx_vec[i]
+  //            << ", rho = " << combined_vertex_prototypes.rho_vec[i] << std::endl;
+
+    oss_cluster << "loop1;" << i << ";" << combined_vertex_prototypes.zvtx_vec[i] << ";" << combined_vertex_prototypes.rho_vec[i] << std::endl;
+}
+
 
 // (re)defining variables to fit to classic da
 vertex_t y;  // the vertex prototypes
@@ -1293,6 +1331,16 @@ std::cout<<"the the second loop clustering took ms :"<< second_loop_clustering.c
 cout << "made it trough the second loop" << std::endl;
 cout << "size after second loop" << y.getSize() << std::endl;
 oss << "global Annealing;" << second_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+
+for (unsigned int  i = 0; i < y.getSize(); ++i)
+{
+      oss_cluster << "loop2;" << i << ";" << y.zvtx_vec[i] << ";" << y.rho_vec[i] << std::endl;
+
+}
+
+
+
+
 #ifdef DEBUG
     verify(y, tks);
 
@@ -1317,7 +1365,7 @@ oss << "global Annealing;" << second_loop_clustering.count() << ";" << y.getSize
   std::chrono::duration<int, std::micro> thermalize_after_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(thermalizing_after_loop_stop - thermalizing_after_loop_start);
 std::cout<<"thermalizing after loops took ms:"<< thermalize_after_loop_clustering.count() << std::endl;
 oss << "thermalizing_after_loops;" << thermalize_after_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
-///*
+//*
   set_vtx_range(beta, tks, y);
   update(beta, tks, y, rho0, false);
 
@@ -1327,7 +1375,7 @@ oss << "thermalizing_after_loops;" << thermalize_after_loop_clustering.count() <
   }
     //propably uncesseracy code, testing impact of it in exp27 if non is visble 
 
-  //*/
+ //*/
     auto further_cooling_timer_start = std::chrono::high_resolution_clock::now();
 
 
@@ -1423,8 +1471,8 @@ cout << "size at the end" << y.getSize() << std::endl;
   std::chrono::duration<int, std::micro> overall_time = std::chrono::duration_cast<std::chrono::microseconds>(stop_overall_timing - start_overall_timing);
 oss << "final time and size;" << overall_time.count() << ";" << y.getSize() << ";none" << std::endl;
 
-
-
+daten_cluster << oss_cluster.str();
+daten_cluster.close();
 
 daten_csv<< oss.str();
 
