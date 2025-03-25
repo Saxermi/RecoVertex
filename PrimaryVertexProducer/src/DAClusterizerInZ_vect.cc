@@ -1252,14 +1252,28 @@ for (unsigned int i = 0; i < tracks.size(); i++)
   std::chrono::duration<int, std::micro> first_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_first_loop - start_clustering_first_loop);
 std::cout<<"the first loop clustering took ms:"<< first_loop_clustering.count() << std::endl;
 
+float rohsums;
+rohsums = 0;
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  rohsums += combined_vertex_prototypes.rho_vec[i];
+}
+
+std::cout << "rohsum is :"<< rohsums << std::endl;
+
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / rohsums;
+}
 
 // Output the combined vertex prototype's cluster positions
-//std::cout << "Combined Vertex Prototype Cluster Positions:" << std::endl;
-for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
+// std::cout << "Combined Vertex Prototype Cluster Positions:" << std::endl;
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
   //  std::cout << "Cluster " << i << ": z = " << combined_vertex_prototypes.zvtx_vec[i]
   //            << ", rho = " << combined_vertex_prototypes.rho_vec[i] << std::endl;
 
-    oss_cluster << "loop1;" << i << ";" << combined_vertex_prototypes.zvtx_vec[i] << ";" << combined_vertex_prototypes.rho_vec[i] << std::endl;
+  oss_cluster << "loop1;" << i << ";" << combined_vertex_prototypes.zvtx_vec[i] << ";" << combined_vertex_prototypes.rho_vec[i] << std::endl;
 }
 
 
@@ -1286,6 +1300,11 @@ vector<TransientVertex> clusters;
   auto stop_clustering = std::chrono::high_resolution_clock::now();
   std::chrono::duration<int, std::micro> tcpu_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering - start_clustering);
 #endif
+
+
+
+
+
 
 
 ///* thermalization not necessary at such high temperatures
