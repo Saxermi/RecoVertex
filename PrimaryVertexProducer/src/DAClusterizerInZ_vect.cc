@@ -1142,40 +1142,45 @@ for (unsigned int i = 0; i < tracks.size(); i++)
     auto start_clustering_first_loop = std::chrono::high_resolution_clock::now();
   /* Reneval of code here. THis now gets block boundaries and then works for DA in blocks*/
   // iterates over each block defined in blocboundaries for each block it finds the range of tracks that fall into it and collects those tracks
-  
-  for (unsigned int b = 0; b < blockBoundaries.size(); b += 2) {
-    float zBegin = blockBoundaries[b];
-    float zEnd   = blockBoundaries[b+1];
-    
-    // find iBegin as the first track with z >= zBegin
-    // find iEnd   as the first track with z > zEnd
-    auto itBegin = std::lower_bound(
-        sorted_tracks.begin(), sorted_tracks.end(), zBegin,
-        [](auto const& tk, float zVal) {
-            return tk.stateAtBeamLine().trackStateAtPCA().position().z() < zVal;
-        }
-    );
-    auto itEnd = std::upper_bound(
-        sorted_tracks.begin(), sorted_tracks.end(), zEnd,
-        [](float zVal, auto const& tk) {
-            return zVal < tk.stateAtBeamLine().trackStateAtPCA().position().z();
-        }
-    );
-    unsigned int beginIdx = itBegin - sorted_tracks.begin();
-    unsigned int endIdx   = itEnd   - sorted_tracks.begin();
+    for (unsigned int b = 0; b < blockBoundaries.size(); b += 2)
+    {
+      float zBegin = blockBoundaries[b];
+      float zEnd = blockBoundaries[b + 1];
+      //debug code
+      std::cout << "debugging blockborders" << std::endl;
+      std::cout << "blockbeginn" << zBegin << "blockend" << zEnd << std::endl;
 
-    // gather block tracks
-    std::vector<reco::TransientTrack> block_tracks;
-    block_tracks.reserve(endIdx - beginIdx);
-  
-    for (unsigned int i = beginIdx; i < endIdx; i++) {
-      block_tracks.push_back(sorted_tracks[i]); // 
-      block_tracks.push_back(sorted_tracks[i]); // vielleicht mal weglassen? // apparently this is used to increase weight eg its a weighting method and should be left in place
-    } // left the second line away in exp26, exclude permanently if its shown to make no difference
-// maybe further discuss this above conclusion wether or not this makes sense???
-    if (block_tracks.empty()) {
-      continue;
-    }
+      // find iBegin as the first track with z >= zBegin
+      // find iEnd   as the first track with z > zEnd
+      auto itBegin = std::lower_bound(
+          sorted_tracks.begin(), sorted_tracks.end(), zBegin,
+          [](auto const &tk, float zVal)
+          {
+            return tk.stateAtBeamLine().trackStateAtPCA().position().z() < zVal;
+          });
+      auto itEnd = std::upper_bound(
+          sorted_tracks.begin(), sorted_tracks.end(), zEnd,
+          [](float zVal, auto const &tk)
+          {
+            return zVal < tk.stateAtBeamLine().trackStateAtPCA().position().z();
+          });
+      unsigned int beginIdx = itBegin - sorted_tracks.begin();
+      unsigned int endIdx = itEnd - sorted_tracks.begin();
+
+      // gather block tracks
+      std::vector<reco::TransientTrack> block_tracks;
+      block_tracks.reserve(endIdx - beginIdx);
+
+      for (unsigned int i = beginIdx; i < endIdx; i++)
+      {
+        block_tracks.push_back(sorted_tracks[i]); //
+        block_tracks.push_back(sorted_tracks[i]); // vielleicht mal weglassen? // apparently this is used to increase weight eg its a weighting method and should be left in place
+      } // left the second line away in exp26, exclude permanently if its shown to make no difference
+      // maybe further discuss this above conclusion wether or not this makes sense???
+      if (block_tracks.empty())
+      {
+        continue;
+      }
 
 
 #ifdef DEBUG
@@ -1207,7 +1212,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double firstbestastop = 1e-5; // betamax_ * sqrt(coolingFactor_)*0.8;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double firstbestastop = 1e-5; // betamax_ * sqrt(coolingFactor_) * 0.8; // 1e-5;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
@@ -1221,15 +1226,19 @@ for (unsigned int i = 0; i < tracks.size(); i++)
       split(beta, tks, y);
      // cout << "iteration is " << iterations << std::endl;
     //  cout << "beta is" << beta << std::endl;
-    //  cout << "betafreeze is" << betafreeze << std::endl;
+    cout << "betasop is" << firstbestastop << std::endl;
 
       beta = beta / coolingFactor_;
       thermalize(beta, tks, y, delta_highT_);
     }
     // store vertex prototypes of the processed block
         // Add the refined vertex prototypes for this block to the combined vertex prototype
-    for (unsigned int i = 0; i < y.getSize(); ++i) {
-        combined_vertex_prototypes.addItem(y.zvtx_vec[i], y.rho_vec[i]);
+    std::cout << "outputting the block clusters" << std::endl;
+    for (unsigned int i = 0; i < y.getSize(); ++i)
+    {
+      combined_vertex_prototypes.addItem(y.zvtx_vec[i], y.rho_vec[i]);
+      std::cout << "clusternumber::::::" << "z pos::::::" << "roh" << std::endl;
+      std::cout << i <<"::::::"<< y.zvtx_vec[i]  <<"::::::"<<y.rho_vec[i] << std::endl;
     }
 
     betasave = beta;
@@ -1237,7 +1246,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     std::cout << "and the following niter" << iterations << std::endl;
     // closes  loop starting 1005
-  }
+    }
   auto stop_clustering_first_loop = std::chrono::high_resolution_clock::now();
 
   std::chrono::duration<int, std::micro> first_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_first_loop - start_clustering_first_loop);
