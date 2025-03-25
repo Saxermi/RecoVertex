@@ -1226,7 +1226,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
       split(beta, tks, y);
      // cout << "iteration is " << iterations << std::endl;
     //  cout << "beta is" << beta << std::endl;
-    cout << "betasop is" << firstbestastop << std::endl;
+    //cout << "betasop is" << firstbestastop << std::endl;
 
       beta = beta / coolingFactor_;
       thermalize(beta, tks, y, delta_highT_);
@@ -1258,8 +1258,10 @@ for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
   rohsums += combined_vertex_prototypes.rho_vec[i];
 }
-
-std::cout << "rohsum is :"<< rohsums << std::endl;
+//rohsum will corrrespond to the number of blocks
+//so instead of summing we can replace this by just counting the number of blocks 
+//which is propably faster
+//std::cout << "rohsum is :"<< rohsums << std::endl;
 
 for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
