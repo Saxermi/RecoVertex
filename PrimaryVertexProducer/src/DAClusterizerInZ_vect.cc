@@ -1129,12 +1129,14 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
 //timing the entire thing
   auto start_overall_timing = std::chrono::high_resolution_clock::now();
 
-// using this vector we collect all vertices protoypes form 
-vertex_t combined_vertex_prototypes;
-double betasave = 0.0;
-for (unsigned int i = 0; i < tracks.size(); i++)
-{
-  sorted_tracks.push_back(tracks[i]);
+  unsigned int numofBlocks=0;
+  
+  // using this vector we collect all vertices protoypes form
+  vertex_t combined_vertex_prototypes;
+  double betasave = 0.0;
+  for (unsigned int i = 0; i < tracks.size(); i++)
+  {
+    sorted_tracks.push_back(tracks[i]);
   }
   double rho0, beta; // get blocborders
   auto blockBoundaries = get_block_boundaries(sorted_tracks);  
@@ -1146,10 +1148,11 @@ for (unsigned int i = 0; i < tracks.size(); i++)
     {
       float zBegin = blockBoundaries[b];
       float zEnd = blockBoundaries[b + 1];
-      //debug code
+      numofBlocks++;
+      // debug code
       std::cout << "debugging blockborders" << std::endl;
       std::cout << "blockbeginn" << zBegin << "blockend" << zEnd << std::endl;
-
+      std::cout << "num of blocks= " << numofBlocks << std::endl;
       // find iBegin as the first track with z >= zBegin
       // find iEnd   as the first track with z > zEnd
       auto itBegin = std::lower_bound(
@@ -1174,7 +1177,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
       for (unsigned int i = beginIdx; i < endIdx; i++)
       {
         block_tracks.push_back(sorted_tracks[i]); //
-        block_tracks.push_back(sorted_tracks[i]); // vielleicht mal weglassen? // apparently this is used to increase weight eg its a weighting method and should be left in place
+      // 177   block_tracks.push_back(sorted_tracks[i]); // vielleicht mal weglassen? // apparently this is used to increase weight eg its a weighting method and should be left in place
       } // left the second line away in exp26, exclude permanently if its shown to make no difference
       // maybe further discuss this above conclusion wether or not this makes sense???
       if (block_tracks.empty())
@@ -1212,7 +1215,7 @@ for (unsigned int i = 0; i < tracks.size(); i++)
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double firstbestastop = 1e-5; // betamax_ * sqrt(coolingFactor_) * 0.8; // 1e-5;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double firstbestastop =   betamax_ * sqrt(coolingFactor_) * 0.8; // 1e-5;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
@@ -1252,12 +1255,12 @@ for (unsigned int i = 0; i < tracks.size(); i++)
   std::chrono::duration<int, std::micro> first_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_first_loop - start_clustering_first_loop);
 std::cout<<"the first loop clustering took ms:"<< first_loop_clustering.count() << std::endl;
 
-float rohsums;
+/*float rohsums;
 rohsums = 0;
 for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
   rohsums += combined_vertex_prototypes.rho_vec[i];
-}
+}*/
 //rohsum will corrrespond to the number of blocks
 //so instead of summing we can replace this by just counting the number of blocks 
 //which is propably faster
@@ -1265,7 +1268,7 @@ for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 
 for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
-  combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / rohsums;
+  combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / numofBlocks;
 }
 
 // Output the combined vertex prototype's cluster positions
@@ -1395,7 +1398,7 @@ for (unsigned int  i = 0; i < y.getSize(); ++i)
   std::chrono::duration<int, std::micro> thermalize_after_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(thermalizing_after_loop_stop - thermalizing_after_loop_start);
 std::cout<<"thermalizing after loops took ms:"<< thermalize_after_loop_clustering.count() << std::endl;
 oss << "thermalizing_after_loops;" << thermalize_after_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
-//*
+/*
   set_vtx_range(beta, tks, y);
   update(beta, tks, y, rho0, false);
 
@@ -1405,7 +1408,7 @@ oss << "thermalizing_after_loops;" << thermalize_after_loop_clustering.count() <
   }
     //propably uncesseracy code, testing impact of it in exp27 if non is visble 
 
- //*/
+ /*/
     auto further_cooling_timer_start = std::chrono::high_resolution_clock::now();
 
 
