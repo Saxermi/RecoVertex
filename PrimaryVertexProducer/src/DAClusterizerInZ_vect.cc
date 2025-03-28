@@ -1138,6 +1138,17 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
   {
     sorted_tracks.push_back(tracks[i]);
   }
+//sort tracks
+  std::sort(sorted_tracks.begin(),
+            sorted_tracks.end(),
+            [](const reco::TransientTrack& a, const reco::TransientTrack& b) -> bool {
+              return (a.stateAtBeamLine().trackStateAtPCA()).position().z() <
+                     (b.stateAtBeamLine().trackStateAtPCA()).position().z();
+            });
+
+
+
+
   double rho0, beta; // get blocborders
   auto blockBoundaries = get_block_boundaries(sorted_tracks);  
   // starting timer for clustering in blocks
