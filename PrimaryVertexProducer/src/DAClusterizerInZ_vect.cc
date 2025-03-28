@@ -1233,7 +1233,7 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double firstbestastop =   betamax_ * sqrt(coolingFactor_) * 0.8; // 1e-5;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double firstbestastop = 1e-2; // betamax_ * sqrt(coolingFactor_) * 0.8; // 1e-5;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
