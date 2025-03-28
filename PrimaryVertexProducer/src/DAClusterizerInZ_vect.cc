@@ -10,6 +10,9 @@
 #include <iomanip>
 #include "FWCore/Utilities/interface/isFinite.h"
 #include "vdt/vdtMath.h"
+//using set for set lookup operations
+#include <set>
+
 // using this for debugging
 #include <chrono>
 typedef std::chrono::duration<int, std::micro> microseconds_type;
@@ -1153,7 +1156,7 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
         << " and overlap fraction = " << overlap_frac_ << ". Setting nBlocks = 1";
   }
 
-
+std::vector<std::vector<unsigned int>> blockbordervec;
   double rho0, beta; // get blocborders
   auto blockBoundaries = get_block_boundaries(sorted_tracks);  
   // starting timer for clustering in blocks
@@ -1187,13 +1190,16 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
       // gather block tracks
       std::vector<reco::TransientTrack> block_tracks;
       block_tracks.reserve(endIdx - beginIdx);
+      vector<unsigned int> blockborder = {beginIdx, endIdx};
+      blockbordervec.push_back(blockborder);
 
       for (unsigned int i = beginIdx; i < endIdx; i++)
       {
         block_tracks.push_back(sorted_tracks[i]);
+        //std::cout << "indizes" << std::endl;
         //std::cout << "beginn" << beginIdx << "end" << endIdx << std::endl;
-        std::cout << "sorted tracks output" << std::endl;
-        std::cout << sorted_tracks[i].track().dz() << std::endl;
+        //  std::cout << "sorted tracks output" << std::endl;
+        //  std::cout << sorted_tracks[i].track().dz() << std::endl;
         //
         // 177   block_tracks.push_back(sorted_tracks[i]); // vielleicht mal weglassen? // apparently this is used to increase weight eg its a weighting method and should be left in place
       } // left the second line away in exp26, exclude permanently if its shown to make no difference
@@ -1272,6 +1278,37 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
 
   std::chrono::duration<int, std::micro> first_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_first_loop - start_clustering_first_loop);
 std::cout<<"the first loop clustering took ms:"<< first_loop_clustering.count() << std::endl;
+//we use a set because they are easy to search trough
+set<unsigned int> overlapRegions;
+
+for (unsigned int a = 0; a+1 < blockbordervec.size();a++){ // maybe muss hier noch die a< bedingung geändert werden
+  std::vector<unsigned int> blockx = blockbordervec[a];
+  std::vector<unsigned int> blocky = blockbordervec[a+1];
+
+  // additional check to make sure blockborder is correctly set up and it does in fact overlap
+  if(blockx[1]<blocky[0]){
+    //now iterate over every overlap and add each overlap to the set
+    for (unsigned int i = blockx[1]; i < blocky[0]; i++)
+    {
+      overlapRegions.insert(i);
+    }
+    }else{
+    std::cout << "Error in calculating overlap" << std::endl;
+
+  }
+}
+float rohsums = 0;
+
+for (unsigned int  i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  if (overlapRegions.find(i)!= overlapRegions.end() )
+  {
+    /* code */
+    combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / 2;
+
+  }
+  rohsums += combined_vertex_prototypes.rho_vec[i];
+}
 
 /*float rohsums;
 rohsums = 0;
@@ -1279,15 +1316,15 @@ for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
   rohsums += combined_vertex_prototypes.rho_vec[i];
 }*/
-//rohsum will corrrespond to the number of blocks
-//so instead of summing we can replace this by just counting the number of blocks 
-//which is propably faster
-//std::cout << "rohsum is :"<< rohsums << std::endl;
+// rohsum will corrrespond to the number of blocks
+// so instead of summing we can replace this by just counting the number of blocks
+// which is propably faster
+// std::cout << "rohsum is :"<< rohsums << std::endl;
 
 for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
-  combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / nBlocks;
-}
+  combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / rohsums;
+  }
 
 // Output the combined vertex prototype's cluster positions
 // std::cout << "Combined Vertex Prototype Cluster Positions:" << std::endl;
