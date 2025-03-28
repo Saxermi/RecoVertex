@@ -1129,7 +1129,6 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
 //timing the entire thing
   auto start_overall_timing = std::chrono::high_resolution_clock::now();
 
-  unsigned int numofBlocks=0;
   
   // using this vector we collect all vertices protoypes form
   vertex_t combined_vertex_prototypes;
@@ -1146,7 +1145,13 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
                      (b.stateAtBeamLine().trackStateAtPCA()).position().z();
             });
 
-
+  unsigned int nBlocks = (unsigned int)std::floor(sorted_tracks.size() / (block_size_ * (1 - overlap_frac_)));
+  if (nBlocks < 1) {
+    nBlocks = 1;
+    edm::LogWarning("DAClusterizerinZ_vect")
+        << "Warning nBlocks was 0 with ntracks = " << sorted_tracks.size() << " block_size = " << block_size_
+        << " and overlap fraction = " << overlap_frac_ << ". Setting nBlocks = 1";
+  }
 
 
   double rho0, beta; // get blocborders
@@ -1159,11 +1164,9 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
     {
       float zBegin = blockBoundaries[b];
       float zEnd = blockBoundaries[b + 1];
-      numofBlocks++;
       // debug code
       std::cout << "debugging blockborders" << std::endl;
       std::cout << "blockbeginn" << zBegin << "blockend" << zEnd << std::endl;
-      std::cout << "num of blocks= " << numofBlocks << std::endl;
       // find iBegin as the first track with z >= zBegin
       // find iEnd   as the first track with z > zEnd
       auto itBegin = std::lower_bound(
@@ -1283,7 +1286,7 @@ for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 
 for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
-  combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / numofBlocks;
+  combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / nBlocks;
 }
 
 // Output the combined vertex prototype's cluster positions
