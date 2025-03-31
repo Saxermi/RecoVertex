@@ -3,13 +3,25 @@
 #include "DataFormats/GeometryCommonDetAlgo/interface/Measurement1D.h"
 #include "RecoVertex/VertexPrimitives/interface/VertexException.h"
 
+
 #include <cmath>
 #include <cassert>
 #include <limits>
 #include <iomanip>
 #include "FWCore/Utilities/interface/isFinite.h"
 #include "vdt/vdtMath.h"
+//using set for set lookup operations
+#include <set>
 
+// using this for debugging
+#include <chrono>
+typedef std::chrono::duration<int, std::micro> microseconds_type;
+// using f stream and sstream for debugging 
+
+#include <fstream>
+#include <sstream>
+#include <ctime>
+#include <string>
 using namespace std;
 
 //#define DEBUG
@@ -786,6 +798,45 @@ bool DAClusterizerInZ_vect::split(const double beta, track_t& tks, vertex_t& y, 
 
 // Standard method DA pure
 vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<reco::TransientTrack>& tracks) const {
+
+  //initalize csv file
+//const std::string directory = "/work/msaxer/ba/data/";
+const std::string directory = "./"; // Current directory for slurm jobs
+
+const std::string base_filename = "daten_";
+auto now = std::chrono::system_clock::now();
+std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
+std::tm* now_tm = std::localtime(&now_time_t);
+char buffer[80];
+std::strftime(buffer, sizeof(buffer), "%Y%m%d_%H%M%S", now_tm);
+std::string filename = directory + base_filename + buffer + ".csv";
+std::ofstream daten_csv(filename, std::ios::app);
+if (!daten_csv.is_open()) {
+    std::cerr << "Failed to open " << filename << std::endl;
+}
+std::ostringstream oss;
+oss << "Current date and time: " << std::asctime(now_tm) << "running the vertices in  no blocks method" << std::endl;
+oss << "Checkpoint;Time it took (microseconds); Number of clusters after checkpoint; comment" << std::endl;
+
+const std::string base_filename_dump = "clusters_";
+std::string filename_cluster = directory + base_filename_dump + buffer + ".csv";
+std::ofstream daten_cluster(filename_cluster, std::ios::app);
+if(!daten_cluster.is_open()){
+
+  std::cerr << "failed to open" << filename_cluster << std::endl;
+}
+std::ostringstream oss_cluster;
+oss_cluster << "Current date and time: " << std::asctime(now_tm) << "running the verticest in blocks method" << std::endl;
+oss_cluster << "checkpoint ;cluster number; z position;roh" << std::endl;
+
+// csv end
+
+
+
+
+
+
+
   track_t&& tks = fill(tracks);
   vector<TransientVertex> clusters;
   if (tks.getSize() == 0)
@@ -810,6 +861,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
   thermalize(beta, tks, y, delta_highT_); // Iteration at T=const, takes for-f-ever for high, till stable for clusters
 
   // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
+  auto start_clustering_second_loop = std::chrono::high_resolution_clock::now();
 
   double betafreeze = betamax_ * sqrt(coolingFactor_);
 
@@ -822,7 +874,24 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
 
     beta = beta / coolingFactor_;
     thermalize(beta, tks, y, delta_highT_);
+          cout << "beta is" << beta << std::endl;
+      cout << "betafreeze is" << betafreeze << std::endl;
+
   }
+      auto stop_clustering_second_loop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> second_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_second_loop - start_clustering_second_loop);
+std::cout<<"the the second loop clustering took ms :"<< second_loop_clustering.count() << std::endl;
+cout << "made it trough the second loop" << std::endl;
+cout << "size after second loop" << y.getSize() << std::endl;
+oss << "global Annealing;" << second_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+
+for (unsigned int  i = 0; i < y.getSize(); ++i)
+{
+      oss_cluster << "loop2;" << i << ";" << y.zvtx_vec[i] << ";" << y.rho_vec[i] << std::endl;
+
+}
+
 
 #ifdef DEBUG
   verify(y, tks);
@@ -840,6 +909,9 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
     set_vtx_range(beta, tks, y);
     update(beta, tks, y, rho0, false);
   }
+    auto further_cooling_timer_start = std::chrono::high_resolution_clock::now();
+
+
   // Right place?; Further cooling post spiltting to get closer to T=1, closer to Gauss-dist
   unsigned int ntry = 0;
   double threshold = 1.0;
@@ -852,6 +924,12 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
     // relax splitting a bit to reduce multiple split-merge cycles of the same cluster
     threshold *= 1.1;
   }
+        auto further_cooling_timer_stop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> further_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(further_cooling_timer_stop - further_cooling_timer_start);
+std::cout<<"further cooling took ms :"<< further_loop_clustering.count() << std::endl;
+cout << "size after further cooling loop" << y.getSize() << std::endl;
+oss << "further cooling;" << further_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
 
 #ifdef DEBUG
   verify(y, tks);
@@ -870,6 +948,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
   }
 
   thermalize(beta, tks, y, delta_lowT_, rho0);
+    auto collapsing_outliers_timer_start = std::chrono::high_resolution_clock::now();
 
 #ifdef DEBUG
   verify(y, tks);
@@ -886,7 +965,13 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
     set_vtx_range(beta, tks, y);
     update(beta, tks, y, rho0, false);
   }
+    auto collapsing_outliers_timer_stop = std::chrono::high_resolution_clock::now();
 
+  std::chrono::duration<int, std::micro> collapsing_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(collapsing_outliers_timer_stop - collapsing_outliers_timer_start);
+std::cout<<"collapsing outliers  took ms :"<< collapsing_loop_clustering.count() << std::endl;
+cout << "size after collapsing outliers loop" << y.getSize() << std::endl;
+oss << "collapsing outliers;" << collapsing_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+    auto eliminate_insignificant_time_start = std::chrono::high_resolution_clock::now();
 #ifdef DEBUG
   verify(y, tks);
   if (DEBUGLEVEL > 0) {
@@ -923,12 +1008,24 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
               << "last cooling T=" << 1 / beta << std::endl;
   }
 #endif
+      auto eliminate_insignificant_time_stop = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<int, std::micro> eliminate_insignificant_duration = std::chrono::duration_cast<std::chrono::microseconds>(eliminate_insignificant_time_stop - eliminate_insignificant_time_start);
+std::cout<<"eliminating insignificant (purging) took ms :"<< eliminate_insignificant_duration.count() << std::endl;
+cout << "size after eliminating insignificant" << y.getSize() << std::endl;
+oss << "eliminating insignificant (purge);" << eliminate_insignificant_duration.count() << ";" << y.getSize() << ";none" << std::endl;
+
+    auto cool_some_more_time_start = std::chrono::high_resolution_clock::now();
 
   // optionally cool some more without doing anything, to make the track assignment harder (harder = sharper more clear)
   while (beta < betastop_) {
     beta = min(beta / coolingFactor_, betastop_);
     thermalize(beta, tks, y, delta_lowT_, rho0);
   }
+    auto cool_some_more_time_stop = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<int, std::micro> cool_some_more_duration = std::chrono::duration_cast<std::chrono::microseconds>(cool_some_more_time_stop - cool_some_more_time_start);
+std::cout<<"some more cooling  took ms :"<< cool_some_more_duration.count() << std::endl;
+cout << "size after some more cooling" << y.getSize() << std::endl;
+oss << "some more cooling;" << cool_some_more_duration.count() << ";" << y.getSize() << ";none" << std::endl;
 
 #ifdef DEBUG
   verify(y, tks);
@@ -939,6 +1036,12 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<r
   if (DEBUGLEVEL > 2)
     dump(beta, y, tks, 2, rho0);
 #endif
+daten_cluster << oss_cluster.str();
+daten_cluster.close();
+
+daten_csv<< oss.str();
+
+daten_csv.close();
 
   // assign tracks and fill into transient vertices
   return fill_vertices(beta, rho0, tks, y);
@@ -985,48 +1088,126 @@ std::vector<float> DAClusterizerInZ_vect::get_block_boundaries(const std::vector
 
 // DA in blocks
 vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<reco::TransientTrack>& tracks) const {
-  vector<reco::TransientTrack> sorted_tracks;
-  vector<pair<float, float>> vertices_tot;  // z, rho for each vertex
-  for (unsigned int i = 0; i < tracks.size(); i++) {
+
+  //initalize csv file
+//const std::string directory = "/work/msaxer/ba/data/";
+const std::string directory = "./"; // Current directory for slurm jobs
+
+const std::string base_filename = "daten_";
+auto now = std::chrono::system_clock::now();
+std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
+std::tm* now_tm = std::localtime(&now_time_t);
+char buffer[80];
+std::strftime(buffer, sizeof(buffer), "%Y%m%d_%H%M%S", now_tm);
+std::string filename = directory + base_filename + buffer + ".csv";
+std::ofstream daten_csv(filename, std::ios::app);
+if (!daten_csv.is_open()) {
+    std::cerr << "Failed to open " << filename << std::endl;
+}
+std::ostringstream oss;
+oss << "Current date and time: " << std::asctime(now_tm) << "running the verticest in blocks method" << std::endl;
+oss << "Checkpoint;Time it took (microseconds); Number of clusters after checkpoint; comment" << std::endl;
+
+const std::string base_filename_dump = "clusters_";
+std::string filename_cluster = directory + base_filename_dump + buffer + ".csv";
+std::ofstream daten_cluster(filename_cluster, std::ios::app);
+if(!daten_cluster.is_open()){
+
+  std::cerr << "failed to open" << filename_cluster << std::endl;
+}
+std::ostringstream oss_cluster;
+oss_cluster << "Current date and time: " << std::asctime(now_tm) << "running the verticest in blocks method" << std::endl;
+oss_cluster << "checkpoint ;cluster number; z position;roh" << std::endl;
+
+// csv end
+
+
+
+
+
+cout << "running in blocks" << std::endl;
+
+vector<reco::TransientTrack> sorted_tracks; // initalizes empty vectors and coppies all tracks into it
+vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
+//timing the entire thing
+  auto start_overall_timing = std::chrono::high_resolution_clock::now();
+
+  
+  // using this vector we collect all vertices protoypes form
+  vertex_t combined_vertex_prototypes;
+  double betasave = 0.0;
+  for (unsigned int i = 0; i < tracks.size(); i++)
+  {
     sorted_tracks.push_back(tracks[i]);
   }
-  double rho0, beta;
+//sort tracks
+  std::sort(sorted_tracks.begin(),
+            sorted_tracks.end(),
+            [](const reco::TransientTrack& a, const reco::TransientTrack& b) -> bool {
+              return (a.stateAtBeamLine().trackStateAtPCA()).position().z() <
+                     (b.stateAtBeamLine().trackStateAtPCA()).position().z();
+            });
+
+  unsigned int nBlocks = (unsigned int)std::floor(sorted_tracks.size() / (block_size_ * (1 - overlap_frac_)));
+  if (nBlocks < 1) {
+    nBlocks = 1;
+    edm::LogWarning("DAClusterizerinZ_vect")
+        << "Warning nBlocks was 0 with ntracks = " << sorted_tracks.size() << " block_size = " << block_size_
+        << " and overlap fraction = " << overlap_frac_ << ". Setting nBlocks = 1";
+  }
+
+std::vector<std::vector<unsigned int>> blockbordervec;
+  double rho0, beta; // get blocborders
   auto blockBoundaries = get_block_boundaries(sorted_tracks);  
-
+  // starting timer for clustering in blocks
+    auto start_clustering_first_loop = std::chrono::high_resolution_clock::now();
   /* Reneval of code here. THis now gets block boundaries and then works for DA in blocks*/
-
-  for (unsigned int b = 0; b < blockBoundaries.size(); b += 2) {
-    float zBegin = blockBoundaries[b];
-    float zEnd   = blockBoundaries[b+1];
-    
-    // find iBegin as the first track with z >= zBegin
-    // find iEnd   as the first track with z > zEnd
-    auto itBegin = std::lower_bound(
-        sorted_tracks.begin(), sorted_tracks.end(), zBegin,
-        [](auto const& tk, float zVal) {
+  // iterates over each block defined in blocboundaries for each block it finds the range of tracks that fall into it and collects those tracks
+    for (unsigned int b = 0; b < blockBoundaries.size(); b += 2)
+    {
+      float zBegin = blockBoundaries[b];
+      float zEnd = blockBoundaries[b + 1];
+      // debug code
+      std::cout << "debugging blockborders" << std::endl;
+      std::cout << "blockbeginn" << zBegin << "blockend" << zEnd << std::endl;
+      // find iBegin as the first track with z >= zBegin
+      // find iEnd   as the first track with z > zEnd
+      auto itBegin = std::lower_bound(
+          sorted_tracks.begin(), sorted_tracks.end(), zBegin,
+          [](auto const &tk, float zVal)
+          {
             return tk.stateAtBeamLine().trackStateAtPCA().position().z() < zVal;
-        }
-    );
-    auto itEnd = std::upper_bound(
-        sorted_tracks.begin(), sorted_tracks.end(), zEnd,
-        [](float zVal, auto const& tk) {
+          });
+      auto itEnd = std::upper_bound(
+          sorted_tracks.begin(), sorted_tracks.end(), zEnd,
+          [](float zVal, auto const &tk)
+          {
             return zVal < tk.stateAtBeamLine().trackStateAtPCA().position().z();
-        }
-    );
-    unsigned int beginIdx = itBegin - sorted_tracks.begin();
-    unsigned int endIdx   = itEnd   - sorted_tracks.begin();
+          });
+      unsigned int beginIdx = itBegin - sorted_tracks.begin();
+      unsigned int endIdx = itEnd - sorted_tracks.begin();
 
-    // gather block tracks
-    std::vector<reco::TransientTrack> block_tracks;
-    block_tracks.reserve(endIdx - beginIdx);
-    for (unsigned int i = beginIdx; i < endIdx; i++) {
-      block_tracks.push_back(sorted_tracks[i]);
-      block_tracks.push_back(sorted_tracks[i]);
-    }
+      // gather block tracks
+      std::vector<reco::TransientTrack> block_tracks;
+      block_tracks.reserve(endIdx - beginIdx);
+      vector<unsigned int> blockborder = {beginIdx, endIdx};
+      blockbordervec.push_back(blockborder);
 
-    if (block_tracks.empty()) {
-      continue;
-    }
+      for (unsigned int i = beginIdx; i < endIdx; i++)
+      {
+        block_tracks.push_back(sorted_tracks[i]);
+        //std::cout << "indizes" << std::endl;
+        //std::cout << "beginn" << beginIdx << "end" << endIdx << std::endl;
+        //  std::cout << "sorted tracks output" << std::endl;
+        //  std::cout << sorted_tracks[i].track().dz() << std::endl;
+        //
+        // 177   block_tracks.push_back(sorted_tracks[i]); // vielleicht mal weglassen? // apparently this is used to increase weight eg its a weighting method and should be left in place
+      } // left the second line away in exp26, exclude permanently if its shown to make no difference
+      // maybe further discuss this above conclusion wether or not this makes sense???
+      if (block_tracks.empty())
+      {
+        continue;
+      }
 
 
 #ifdef DEBUG
@@ -1047,6 +1228,8 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
     // estimate first critical temperature
     beta = beta0(betamax_, tks, y);
+      cout << "beta before 1 loop" << beta<< std::endl;
+
 #ifdef DEBUG
     if (DEBUGLEVEL > 0)
       std::cout << "Beta0 is " << beta << std::endl;
@@ -1056,16 +1239,195 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double betafreeze = betamax_ * sqrt(coolingFactor_);
-    while (beta < betafreeze) {
-      while (merge(y, tks, beta)) {
+    double firstbestastop = 1e-3; // betamax_ * sqrt(coolingFactor_) * 0.8; // 1e-5;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    int iterations = 0;
+
+
+    while (beta < firstbestastop)
+    {
+      iterations++;
+      while (merge(y, tks, beta))
+      {
         update(beta, tks, y, rho0, false);
       }
       split(beta, tks, y);
+     // cout << "iteration is " << iterations << std::endl;
+    //  cout << "beta is" << beta << std::endl;
+    //cout << "betasop is" << firstbestastop << std::endl;
 
       beta = beta / coolingFactor_;
       thermalize(beta, tks, y, delta_highT_);
     }
+    // store vertex prototypes of the processed block
+        // Add the refined vertex prototypes for this block to the combined vertex prototype
+    std::cout << "outputting the block clusters" << std::endl;
+    for (unsigned int i = 0; i < y.getSize(); ++i)
+    {
+      combined_vertex_prototypes.addItem(y.zvtx_vec[i], y.rho_vec[i]);
+      std::cout << "clusternumber::::::" << "z pos::::::" << "roh" << std::endl;
+      std::cout << i <<"::::::"<< y.zvtx_vec[i]  <<"::::::"<<y.rho_vec[i] << std::endl;
+    }
+
+    betasave = beta;
+    // what if we thermalize ombined_vertex_prototypes now?
+
+    std::cout << "and the following niter" << iterations << std::endl;
+    // closes  loop starting 1005
+    }
+  auto stop_clustering_first_loop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> first_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_first_loop - start_clustering_first_loop);
+std::cout<<"the first loop clustering took ms:"<< first_loop_clustering.count() << std::endl;
+//we use a set because they are easy to search trough
+set<unsigned int> overlapRegions;
+
+for (unsigned int a = 0; a+1 < blockbordervec.size();a++){ // maybe muss hier noch die a< bedingung geändert werden
+  std::vector<unsigned int> blockx = blockbordervec[a];
+  std::vector<unsigned int> blocky = blockbordervec[a+1];
+
+  // additional check to make sure blockborder is correctly set up and it does in fact overlap
+  if(blockx[1]>blocky[0]){
+    //now iterate over every overlap and add each overlap to the set
+    for (unsigned int i = blockx[1]; i < blocky[0]; i++)
+    {
+      overlapRegions.insert(i);
+    }
+    }else{
+    std::cout << "Error in calculating overlap" << std::endl;
+
+  }
+}
+float rohsums = 0;
+
+for (unsigned int  i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  if (overlapRegions.find(i)!= overlapRegions.end() )
+  {
+    /* code */
+    combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / 2;
+
+  }
+  rohsums += combined_vertex_prototypes.rho_vec[i];
+}
+
+/*float rohsums;
+rohsums = 0;
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  rohsums += combined_vertex_prototypes.rho_vec[i];
+}*/
+// rohsum will corrrespond to the number of blocks
+// so instead of summing we can replace this by just counting the number of blocks
+// which is propably faster
+// std::cout << "rohsum is :"<< rohsums << std::endl;
+
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / rohsums;
+  }
+
+// Output the combined vertex prototype's cluster positions
+// std::cout << "Combined Vertex Prototype Cluster Positions:" << std::endl;
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  //  std::cout << "Cluster " << i << ": z = " << combined_vertex_prototypes.zvtx_vec[i]
+  //            << ", rho = " << combined_vertex_prototypes.rho_vec[i] << std::endl;
+
+  oss_cluster << "loop1;" << i << ";" << combined_vertex_prototypes.zvtx_vec[i] << ";" << combined_vertex_prototypes.rho_vec[i] << std::endl;
+}
+
+
+// (re)defining variables to fit to classic da
+vertex_t y;  // the vertex prototypes
+
+y = combined_vertex_prototypes;
+cout << "size before" << y.getSize() << std::endl;
+oss << "Annealing_in_blocks;" << first_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+
+
+vector<TransientVertex> clusters;
+ track_t tks = fill(sorted_tracks); // track_t&& doesent work it then says out of scope for while merge loop
+
+ if (tks.getSize() == 0){
+    return clusters;
+ }
+
+
+
+
+
+#ifdef cputime
+  auto stop_clustering = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<int, std::micro> tcpu_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering - start_clustering);
+#endif
+
+
+
+
+
+
+
+///* thermalization not necessary at such high temperatures
+//trying to thermalize
+  auto thermalizing_inbetween_loop_start = std::chrono::high_resolution_clock::now();
+
+    thermalize(beta, tks, y, delta_highT_);
+     while (merge(y, tks, beta))
+    {
+      update(beta, tks, y, rho0, false); // check update method again wether merging done correctly
+    } // merging after thermalizing
+  auto thermalizing_inbetween_loop_stop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> thermalize_inbetween_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(thermalizing_inbetween_loop_stop - thermalizing_inbetween_loop_start);
+std::cout<<"thermalizing innbetween took ms:"<< thermalize_inbetween_loop_clustering.count() << std::endl;
+oss << "thermalizing_between_loops;" << thermalize_inbetween_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+
+//*/// 
+// insert da global code here
+
+// global annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
+//hardcoding beta to 0.005 not sure if this is necessary but maybe?
+  //
+
+  beta = betasave *0.9; //*0.5;
+  cout << "beta before 2 loop" << beta << std::endl;
+
+  // beta = 0.005;
+  double secondbestastop =  betamax_ * sqrt(coolingFactor_);/// betamax_ * sqrt(coolingFactor_);
+  cout << "betafreeze second loop" << secondbestastop << std::endl;
+  cout << "made it to the second loop" << std::endl;
+  auto start_clustering_second_loop = std::chrono::high_resolution_clock::now();
+
+  // main loop which takes a long time for high T; this runs until stable
+  while (beta < secondbestastop)
+  {
+    while (merge(y, tks, beta))
+    {
+      update(beta, tks, y, rho0, false);
+    }
+    split(beta, tks, y);
+    cout << "beta is" << beta << std::endl;
+    cout << "secondbestastop is" << secondbestastop << std::endl;
+
+    beta = beta / coolingFactor_;
+    thermalize(beta, tks, y, delta_highT_);
+  }
+    auto stop_clustering_second_loop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> second_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_second_loop - start_clustering_second_loop);
+std::cout<<"the the second loop clustering took ms :"<< second_loop_clustering.count() << std::endl;
+cout << "made it trough the second loop" << std::endl;
+cout << "size after second loop" << y.getSize() << std::endl;
+oss << "global Annealing;" << second_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+
+for (unsigned int  i = 0; i < y.getSize(); ++i)
+{
+      oss_cluster << "loop2;" << i << ";" << y.zvtx_vec[i] << ";" << y.rho_vec[i] << std::endl;
+
+}
+
+
+
 
 #ifdef DEBUG
     verify(y, tks);
@@ -1076,6 +1438,138 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
     }
 #endif
 
+
+
+//trying to thermalize
+  auto thermalizing_after_loop_start = std::chrono::high_resolution_clock::now();
+
+    thermalize(beta, tks, y, delta_highT_);
+     while (merge(y, tks, beta))
+    {
+      update(beta, tks, y, rho0, false); // check update method again wether merging done correctly
+    } // merging after thermalizing
+  auto thermalizing_after_loop_stop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> thermalize_after_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(thermalizing_after_loop_stop - thermalizing_after_loop_start);
+std::cout<<"thermalizing after loops took ms:"<< thermalize_after_loop_clustering.count() << std::endl;
+oss << "thermalizing_after_loops;" << thermalize_after_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+/*
+  set_vtx_range(beta, tks, y);
+  update(beta, tks, y, rho0, false);
+
+  while (merge(y, tks, beta)) {
+    set_vtx_range(beta, tks, y);
+    update(beta, tks, y, rho0, false);
+  }
+    //propably uncesseracy code, testing impact of it in exp27 if non is visble 
+
+ /*/
+    auto further_cooling_timer_start = std::chrono::high_resolution_clock::now();
+
+
+  // Right place?; Further cooling post spiltting to get closer to T=1, closer to Gauss-dist
+  unsigned int ntry = 0;
+  double threshold = 1.0;
+  while (split(beta, tks, y, threshold) && (ntry++ < 10)) {
+    thermalize(beta, tks, y, delta_highT_, rho0);  // rho0 = 0. here
+    while (merge(y, tks, beta)) {
+      update(beta, tks, y, rho0, false);
+    }
+
+    // relax splitting a bit to reduce multiple split-merge cycles of the same cluster
+    threshold *= 1.1;
+  }
+      auto further_cooling_timer_stop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> further_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(further_cooling_timer_stop - further_cooling_timer_start);
+std::cout<<"further cooling took ms :"<< further_loop_clustering.count() << std::endl;
+cout << "size after further cooling loop" << y.getSize() << std::endl;
+oss << "further cooling;" << further_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+    auto final_cooling_start = std::chrono::high_resolution_clock::now();
+
+  // switch on outlier rejection at T=Tmin
+  if (dzCutOff_ > 0) {
+    rho0 = y.getSize() > 1 ? 1. / y.getSize() : 1.;
+    for (unsigned int a = 0; a < 5; a++) {
+      update(beta, tks, y, a * rho0 / 5.);  // adiabatic turn-on
+    }
+  }
+
+  thermalize(beta, tks, y, delta_lowT_, rho0);
+
+    auto collapsing_outliers_timer_start = std::chrono::high_resolution_clock::now();
+
+  // merge again (some cluster split by outliers collapse here)
+  while (merge(y, tks, beta)) {
+    set_vtx_range(beta, tks, y);
+    update(beta, tks, y, rho0, false);
+  }
+    auto collapsing_outliers_timer_stop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> collapsing_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(collapsing_outliers_timer_stop - collapsing_outliers_timer_start);
+std::cout<<"collapsing outliers  took ms :"<< collapsing_loop_clustering.count() << std::endl;
+cout << "size after collapsing outliers loop" << y.getSize() << std::endl;
+oss << "collapsing outliers;" << collapsing_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+    auto eliminate_insignificant_time_start = std::chrono::high_resolution_clock::now();
+  // go down to the purging temperature (if it is lower than Tmin)
+  while (beta < betapurge_) {
+    beta = min(beta / coolingFactor_, betapurge_);
+    thermalize(beta, tks, y, delta_lowT_, rho0);
+  }
+
+
+
+
+
+
+  // eliminate insignificant vertices, this is more restrictive at higher T
+  while (purge(y, tks, rho0, beta)) {
+    thermalize(beta, tks, y, delta_lowT_, rho0);
+  }
+      auto eliminate_insignificant_time_stop = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<int, std::micro> eliminate_insignificant_duration = std::chrono::duration_cast<std::chrono::microseconds>(eliminate_insignificant_time_stop - eliminate_insignificant_time_start);
+std::cout<<"eliminating insignificant (purging) took ms :"<< eliminate_insignificant_duration.count() << std::endl;
+cout << "size after eliminating insignificant" << y.getSize() << std::endl;
+oss << "eliminating insignificant (purge);" << eliminate_insignificant_duration.count() << ";" << y.getSize() << ";none" << std::endl;
+
+    auto cool_some_more_time_start = std::chrono::high_resolution_clock::now();
+
+  // optionally cool some more without doing anything, to make the track assignment harder (harder = sharper more clear)
+  while (beta < betastop_) {
+    beta = min(beta / coolingFactor_, betastop_);
+    thermalize(beta, tks, y, delta_lowT_, rho0);
+  }
+    auto cool_some_more_time_stop = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<int, std::micro> cool_some_more_duration = std::chrono::duration_cast<std::chrono::microseconds>(cool_some_more_time_stop - cool_some_more_time_start);
+std::cout<<"some more cooling  took ms :"<< cool_some_more_duration.count() << std::endl;
+cout << "size after some more cooling" << y.getSize() << std::endl;
+oss << "some more cooling;" << cool_some_more_duration.count() << ";" << y.getSize() << ";none" << std::endl;
+
+
+    auto final_cooling_stop = std::chrono::high_resolution_clock::now();
+
+
+  std::chrono::duration<int, std::micro> final_cooling_clustering = std::chrono::duration_cast<std::chrono::microseconds>(final_cooling_stop - final_cooling_start);
+std::cout<<"total time cooling took ms :"<< final_cooling_clustering.count() << std::endl;
+cout << "size at the end" << y.getSize() << std::endl;
+
+
+  auto stop_overall_timing = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<int, std::micro> overall_time = std::chrono::duration_cast<std::chrono::microseconds>(stop_overall_timing - start_overall_timing);
+oss << "final time and size;" << overall_time.count() << ";" << y.getSize() << ";none" << std::endl;
+
+daten_cluster << oss_cluster.str();
+daten_cluster.close();
+
+daten_csv<< oss.str();
+
+daten_csv.close();
+cout << "wrote csv" << y.getSize() << std::endl;
+
+  return fill_vertices(beta, rho0, tks, y);
+
+/*
     set_vtx_range(beta, tks, y);
     update(beta, tks, y, rho0, false);
 
@@ -1330,9 +1824,17 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
       vertexTracks.clear();
     }
   }
+  */
 
-  return clusters;
+
+
+ // return clusters;
+
 }  // end of vertices_in_blocks
+
+
+
+
 
 vector<TransientVertex> DAClusterizerInZ_vect::fill_vertices(double beta, double rho0, track_t& tks, vertex_t& y) const {
   // select significant tracks and use a TransientVertex as a container
