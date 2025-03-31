@@ -1239,7 +1239,7 @@ std::vector<std::vector<unsigned int>> blockbordervec;
 
     // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-    double firstbestastop = 1e-2; // betamax_ * sqrt(coolingFactor_) * 0.8; // 1e-5;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
+    double firstbestastop = 1e-3; // betamax_ * sqrt(coolingFactor_) * 0.8; // 1e-5;//5e-4; // 0.5; // seting betafreeze to T=20 betamax_ * sqrt(coolingFactor_);
     int iterations = 0;
 
 
@@ -1286,7 +1286,7 @@ for (unsigned int a = 0; a+1 < blockbordervec.size();a++){ // maybe muss hier no
   std::vector<unsigned int> blocky = blockbordervec[a+1];
 
   // additional check to make sure blockborder is correctly set up and it does in fact overlap
-  if(blockx[1]<blocky[0]){
+  if(blockx[1]>blocky[0]){
     //now iterate over every overlap and add each overlap to the set
     for (unsigned int i = blockx[1]; i < blocky[0]; i++)
     {
