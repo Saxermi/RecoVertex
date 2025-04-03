@@ -408,9 +408,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 	double ppcut = cParams.uniquetrkweight() * vertices[ivertex].rho() / (vertices[ivertex].rho()+rhoconst);
 	double track_vertex_aux1 = exp(-(_beta)*tracks[itrack].oneoverdz2() * ( (tracks[itrack].z()-vertices[ivertex].z())*(tracks[itrack].z()-vertices[ivertex].z()) ));
         double p = vertices[ivertex].rho()*track_vertex_aux1*track_aux1; // The whole track-vertex P_ij = rho_j*p_ij*p_i
-        alpaka::atomicAdd(acc, &vertices[ivertex].aux1(), p, alpaka::hierarchy::Threads{});
+        //alpaka::atomicAdd(acc, &vertices[ivertex].aux1(), p, alpaka::hierarchy::Threads{}); // trying to fix the issues by type casting
+        alpaka::atomicAdd(acc, &osumtkwt, static_cast<double>(tracks[itrack].weight()), alpaka::hierarchy::Threads{});
+
         if (p>ppcut) {
-          alpaka::atomicAdd(acc, &vertices[ivertex].aux2(), 1., alpaka::hierarchy::Threads{});
+         // alpaka::atomicAdd(acc, &vertices[ivertex].aux2(), 1., alpaka::hierarchy::Threads{}); //fixing type mismatch
+        alpaka::atomicAdd(acc, &vertices[ivertex].aux2(), 1.f, alpaka::hierarchy::Threads{});
+
         }
       }
     }
@@ -526,8 +530,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
     alpaka::syncBlockThreads(acc);
     for (int itrack = threadIdx+blockIdx*blockSize; itrack < threadIdx+(blockIdx+1)*blockSize ; itrack += blockSize){ // TODO:Saving and reading in the tracks dataformat might be a bit too much?
-      alpaka::atomicAdd(acc, &wnew, tracks[itrack].aux1(), alpaka::hierarchy::Threads{});
-      alpaka::atomicAdd(acc, &znew, tracks[itrack].aux2(), alpaka::hierarchy::Threads{});
+    //  alpaka::atomicAdd(acc, &wnew, tracks[itrack].aux1(), alpaka::hierarchy::Threads{}); // both have a type mismatch
+    //  alpaka::atomicAdd(acc, &znew, tracks[itrack].aux2(), alpaka::hierarchy::Threads{});
+
+
+     alpaka::atomicAdd(acc, &wnew,static_cast<double>( tracks[itrack].aux1()), alpaka::hierarchy::Threads{});
+      alpaka::atomicAdd(acc, &znew,static_cast<double>( tracks[itrack].aux2()), alpaka::hierarchy::Threads{});
     }
     alpaka::syncBlockThreads(acc);
     if (once_per_block(acc)){
@@ -538,7 +546,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     // Now do a chi-2 like of all tracks and save it again in znew
     for (int itrack = threadIdx+blockIdx*blockSize; itrack < threadIdx+(blockIdx+1)*blockSize ; itrack += blockSize){
       tracks[itrack].aux2() = tracks[itrack].aux1()*(vertices[maxVerticesPerBlock*blockIdx].z() - tracks[itrack].z() )*(vertices[maxVerticesPerBlock*blockIdx].z() - tracks[itrack].z())*tracks[itrack].oneoverdz2();
-      alpaka::atomicAdd(acc, &znew, tracks[itrack].aux2(), alpaka::hierarchy::Threads{});
+     // alpaka::atomicAdd(acc, &znew, tracks[itrack].aux2(), alpaka::hierarchy::Threads{});
+     alpaka::atomicAdd(acc, &znew,static_cast<double>( tracks[itrack].aux2()), alpaka::hierarchy::Threads{});
     }
     alpaka::syncBlockThreads(acc);
     if (once_per_block(acc)){
@@ -930,7 +939,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       double& _beta = alpaka::declareSharedVar<double, __COUNTER__>(acc);
       double& osumtkwt = alpaka::declareSharedVar<double, __COUNTER__>(acc);
       for (int itrack = threadIdx+blockIdx*blockSize; itrack < threadIdx+(blockIdx+1)*blockSize ; itrack += blockSize){ // TODO:Saving and reading in the tracks dataformat might be a bit too much?
-        alpaka::atomicAdd(acc, &osumtkwt, tracks[itrack].weight(), alpaka::hierarchy::Threads{});
+       // alpaka::atomicAdd(acc, &osumtkwt, tracks[itrack].weight(), alpaka::hierarchy::Threads{});
+        alpaka::atomicAdd(acc, &osumtkwt,static_cast<double>( tracks[itrack].weight()), alpaka::hierarchy::Threads{});
       }
       alpaka::syncBlockThreads(acc);
       // In each block, initialize to a single vertex with all tracks
