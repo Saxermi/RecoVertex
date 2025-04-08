@@ -1298,32 +1298,129 @@ for (unsigned int  i = 0; i < combined_vertex_prototypes.getSize(); ++i)
   rohsums += combined_vertex_prototypes.rho_vec[i];
 }
 
-/*float rohsums;
-rohsums = 0;
-for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
-{
-  rohsums += combined_vertex_prototypes.rho_vec[i];
-}*/
-// rohsum will corrrespond to the number of blocks
-// so instead of summing we can replace this by just counting the number of blocks
-// which is propably faster
-// std::cout << "rohsum is :"<< rohsums << std::endl;
-
 for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
   combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / rohsums;
   }
 
 // Output the combined vertex prototype's cluster positions
-// std::cout << "Combined Vertex Prototype Cluster Positions:" << std::endl;
 for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
-  //  std::cout << "Cluster " << i << ": z = " << combined_vertex_prototypes.zvtx_vec[i]
-  //            << ", rho = " << combined_vertex_prototypes.rho_vec[i] << std::endl;
-
   oss_cluster << "loop1;" << i << ";" << combined_vertex_prototypes.zvtx_vec[i] << ";" << combined_vertex_prototypes.rho_vec[i] << std::endl;
 }
 
+// Make a second loop with da in blocks but with only 2 blocks
+
+// --- Specify number of blocks for the second DA ---
+unsigned int nSecondBlocks = 2;  // Set desired number of blocks here
+
+// Optional: Sort the clusters by z position if not already sorted.
+std::vector<std::pair<float, float>> proto;
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
+    proto.push_back(std::make_pair(combined_vertex_prototypes.zvtx_vec[i],
+                                   combined_vertex_prototypes.rho_vec[i]));
+}
+std::sort(proto.begin(), proto.end(), [](const std::pair<float, float>& a, const std::pair<float, float>& b) {
+    return a.first < b.first;
+});
+// Refill combined_vertex_prototypes in sorted order:
+combined_vertex_prototypes.clear();
+for (unsigned int i = 0; i < proto.size(); ++i) {
+    combined_vertex_prototypes.addItem(proto[i].first, proto[i].second);
+}
+
+// --- Partition clusters into nSecondBlocks blocks ---
+unsigned int totalClusters = combined_vertex_prototypes.getSize();
+unsigned int blockSize2 = totalClusters / nSecondBlocks;
+if (blockSize2 < 1)
+    blockSize2 = 1;
+
+std::vector<vertex_t> secondBlockPrototypes;
+for (unsigned int b = 0; b < nSecondBlocks; ++b) {
+    vertex_t blockVertex;
+    unsigned int startIdx = b * blockSize2;
+    // Ensure the last block gets any remaining clusters:
+    unsigned int endIdx = (b == nSecondBlocks - 1) ? totalClusters : (b + 1) * blockSize2;
+    for (unsigned int i = startIdx; i < endIdx; ++i) {
+        blockVertex.addItem(combined_vertex_prototypes.zvtx_vec[i],
+                            combined_vertex_prototypes.rho_vec[i]);
+    }
+    secondBlockPrototypes.push_back(blockVertex);
+    std::cout << "Second loop block " << b << " size: " << blockVertex.getSize() << std::endl;
+}
+
+// --- Run second DA on each block ---
+// Use the same track container (tks) from before and adjust the DA parameters as needed.
+for (unsigned int b = 0; b < secondBlockPrototypes.size(); ++b) {
+    // Start with a lower temperature (i.e. higher beta) for the second in-block DA.
+    double beta_second =  1e-2              // betasave * 0.9;
+    double second_loop_threshold = betamax_ * sqrt(coolingFactor_);
+    std::cout << "Starting second DA on block " << b 
+              << " with beta = " << beta_second << std::endl;
+
+    while (beta_second < second_loop_threshold) {
+        while (merge(secondBlockPrototypes[b], tks, beta_second)) {
+            update(beta_second, tks, secondBlockPrototypes[b], rho0, false);
+        }
+        split(beta_second, tks, secondBlockPrototypes[b]);
+        beta_second = beta_second / coolingFactor_;
+        thermalize(beta_second, tks, secondBlockPrototypes[b], delta_highT_);
+        std::cout << "Block " << b << ": beta = " << beta_second
+                  << ", clusters = " << secondBlockPrototypes[b].getSize() << std::endl;
+    }
+}
+
+// --- Combine refined blocks ---
+vertex_t refinedCombinedClusters;
+for (unsigned int b = 0; b < secondBlockPrototypes.size(); ++b) {
+    for (unsigned int i = 0; i < secondBlockPrototypes[b].getSize(); ++i) {
+        refinedCombinedClusters.addItem(secondBlockPrototypes[b].zvtx_vec[i],
+                                          secondBlockPrototypes[b].rho_vec[i]);
+    }
+}
+std::cout << "Final refined clusters after second in-block DA: "
+          << refinedCombinedClusters.getSize() << std::endl;
+
+// You can then continue with further cooling, outlier rejection, or other steps
+
+set<unsigned int> overlapRegions;
+
+for (unsigned int a = 0; a+1 < blockbordervec.size();a++){ // maybe muss hier noch die a< bedingung geändert werden
+  std::vector<unsigned int> blockx = blockbordervec[a];
+  std::vector<unsigned int> blocky = blockbordervec[a+1];
+
+  // additional check to make sure blockborder is correctly set up and it does in fact overlap
+  if(blockx[1]>blocky[0]){
+    //now iterate over every overlap and add each overlap to the set
+    for (unsigned int i = blockx[1]; i < blocky[0]; i++)
+    {
+      overlapRegions.insert(i);
+    }
+    }else{
+    std::cout << "Error in calculating overlap" << std::endl;
+
+  }
+}
+float rohsums = 0;
+
+for (unsigned int  i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  if (overlapRegions.find(i)!= overlapRegions.end() )
+  {
+    /* code */
+    combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / 2;
+
+  }
+  rohsums += combined_vertex_prototypes.rho_vec[i];
+}
+
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / rohsums;
+  }
+// using refinedCombinedClusters (or assign it to y, for example):
+vertex_t y;
+y = refinedCombinedClusters;
 
 // (re)defining variables to fit to classic da
 vertex_t y;  // the vertex prototypes
