@@ -1437,7 +1437,7 @@ oss << "Annealing_in_blocks;" << first_loop_clustering.count() << ";" << y.getSi
 
 
 vector<TransientVertex> clusters;
- track_t tks = fill(sorted_tracks); // track_t&& doesent work it then says out of scope for while merge loop
+ //track_t tks = fill(sorted_tracks); // track_t&& doesent work it then says out of scope for while merge loop
 
  if (tks.getSize() == 0){
     return clusters;
