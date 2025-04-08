@@ -1324,7 +1324,7 @@ std::sort(proto.begin(), proto.end(), [](const std::pair<float, float>& a, const
     return a.first < b.first;
 });
 // Refill combined_vertex_prototypes in sorted order:
-combined_vertex_prototypes.clear();
+combined_vertex_prototypes = vertex_t();
 for (unsigned int i = 0; i < proto.size(); ++i) {
     combined_vertex_prototypes.addItem(proto[i].first, proto[i].second);
 }
@@ -1351,9 +1351,12 @@ for (unsigned int b = 0; b < nSecondBlocks; ++b) {
 
 // --- Run second DA on each block ---
 // Use the same track container (tks) from before and adjust the DA parameters as needed.
+track_t tks = fill(sorted_tracks);
+tks.extractRaw();
+
 for (unsigned int b = 0; b < secondBlockPrototypes.size(); ++b) {
     // Start with a lower temperature (i.e. higher beta) for the second in-block DA.
-    double beta_second =  1e-2              // betasave * 0.9;
+    double beta_second =  1e-2;              // betasave * 0.9;
     double second_loop_threshold = betamax_ * sqrt(coolingFactor_);
     std::cout << "Starting second DA on block " << b 
               << " with beta = " << beta_second << std::endl;
@@ -1386,8 +1389,6 @@ std::cout << "Final refined clusters after second in-block DA: "
 
 // You can then continue with further cooling, outlier rejection, or other steps
 
-set<unsigned int> overlapRegions;
-
 for (unsigned int a = 0; a+1 < blockbordervec.size();a++){ // maybe muss hier noch die a< bedingung geändert werden
   std::vector<unsigned int> blockx = blockbordervec[a];
   std::vector<unsigned int> blocky = blockbordervec[a+1];
@@ -1404,7 +1405,6 @@ for (unsigned int a = 0; a+1 < blockbordervec.size();a++){ // maybe muss hier no
 
   }
 }
-float rohsums = 0;
 
 for (unsigned int  i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
@@ -1429,10 +1429,7 @@ for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 }
 // using refinedCombinedClusters (or assign it to y, for example):
 vertex_t y;
-y = refinedCombinedClusters;
 
-// (re)defining variables to fit to classic da
-vertex_t y;  // the vertex prototypes
 
 y = combined_vertex_prototypes;
 cout << "size before" << y.getSize() << std::endl;
