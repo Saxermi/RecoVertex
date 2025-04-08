@@ -1313,7 +1313,7 @@ for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 
 // --- Specify number of blocks for the second DA ---
 unsigned int nSecondBlocks = 2;  // Set desired number of blocks here
-
+auto start_clustering_2ndDAB_loop = std::chrono::high_resolution_clock::now();
 // Optional: Sort the clusters by z position if not already sorted.
 std::vector<std::pair<float, float>> proto;
 for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
@@ -1369,7 +1369,10 @@ for (unsigned int b = 0; b < secondBlockPrototypes.size(); ++b) {
                   << ", clusters = " << secondBlockPrototypes[b].getSize() << std::endl;
     }
 }
+auto stop_clustering_2ndDAB_loop = std::chrono::high_resolution_clock::now();
 
+std::chrono::duration<int, std::micro> first_2ndDAB_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_2ndDAB_loop - start_clustering_2ndDAB_loop);
+std::cout<<"the second DAB loop clustering took ms:"<< first_loop_clustering.count() << std::endl;
 // --- Combine refined blocks ---
 vertex_t refinedCombinedClusters;
 for (unsigned int b = 0; b < secondBlockPrototypes.size(); ++b) {
@@ -1417,7 +1420,13 @@ for (unsigned int  i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
   combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / rohsums;
-  }
+}
+
+// Output the combined vertex prototype's cluster positions
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  oss_cluster << "loop2nDAB;" << i << ";" << combined_vertex_prototypes.zvtx_vec[i] << ";" << combined_vertex_prototypes.rho_vec[i] << std::endl;
+}
 // using refinedCombinedClusters (or assign it to y, for example):
 vertex_t y;
 y = refinedCombinedClusters;
