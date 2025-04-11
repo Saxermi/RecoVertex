@@ -1415,7 +1415,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
   y = combined_vertex_prototypes;
   cout << "size before" << y.getSize() << std::endl;
-  oss << "Annealing_in_blocks_2nd_loop;" << first_2ndDAB_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+  oss << "Annealing_in_blocks_2nd_loop;" << first_2ndDAB_clustering.count() << ";" << combined_vertex_prototypes.getSize() << ";none" << std::endl;
 
 
   vector<TransientVertex> clusters;
