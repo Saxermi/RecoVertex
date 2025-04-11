@@ -1299,19 +1299,20 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
     }
   oss << "Annealing_in_blocks_1nd_loop;" << first_loop_clustering.count() << ";" << combined_vertex_prototypes.getSize() << ";none" << std::endl;
 
-  vertex_t y;
-
+  // (re)defining variables to fit to classic da
+  vertex_t y;  // the vertex prototypes
 
   y = combined_vertex_prototypes;
   cout << "size before" << y.getSize() << std::endl;
-  
+  oss << "Annealing_in_blocks;" << first_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+
 
   vector<TransientVertex> clusters;
+  track_t tks = fill(sorted_tracks);
 
-  if (tks.getSize() == 0){
+ if (tks.getSize() == 0){
     return clusters;
-  }
-
+ }
     #ifdef cputime
   auto stop_clustering = std::chrono::high_resolution_clock::now();
   std::chrono::duration<int, std::micro> tcpu_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering - start_clustering);
