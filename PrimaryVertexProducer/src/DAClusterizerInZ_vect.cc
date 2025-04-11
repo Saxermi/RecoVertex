@@ -1222,7 +1222,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
       // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-      double firstbestastop = 0.5;
+      double firstbestastop = 0.01;
       int iterations = 0;
 
 
