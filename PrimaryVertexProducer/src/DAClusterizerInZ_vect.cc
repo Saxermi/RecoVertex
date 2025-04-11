@@ -1118,7 +1118,6 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
   // csv end
 
-
   cout << "running in blocks" << std::endl;
 
   vector<reco::TransientTrack> sorted_tracks; // initalizes empty vectors and coppies all tracks into it
@@ -1223,7 +1222,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
       // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-      double firstbestastop = 1e-4;
+      double firstbestastop = 0.5;
       int iterations = 0;
 
 
@@ -1300,126 +1299,14 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
     }
   oss << "Annealing_in_blocks_1nd_loop;" << first_loop_clustering.count() << ";" << combined_vertex_prototypes.getSize() << ";none" << std::endl;
 
-  // Make a second loop with da in blocks but with only 2 blocks
-
-  // --- Specify number of blocks for the second DA ---
-  unsigned int nSecondBlocks = 3;
-  auto start_clustering_2ndDAB_loop = std::chrono::high_resolution_clock::now();
-  // Optional: Sort the clusters by z position if not already sorted.
-  std::vector<std::pair<float, float>> proto;
-  for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
-    proto.push_back(std::make_pair(combined_vertex_prototypes.zvtx_vec[i], combined_vertex_prototypes.rho_vec[i]));
-  }
-  std::sort(proto.begin(), proto.end(), [](const std::pair<float, float>& a, const std::pair<float, float>& b) {
-      return a.first < b.first;
-    });
-  // Refill combined_vertex_prototypes in sorted order:
-  combined_vertex_prototypes = vertex_t();
-  for (unsigned int i = 0; i < proto.size(); ++i) {
-    combined_vertex_prototypes.addItem(proto[i].first, proto[i].second);
-  }
-
-  // --- Partition clusters into nSecondBlocks blocks ---
-  unsigned int totalClusters = combined_vertex_prototypes.getSize();
-  unsigned int blockSize2 = totalClusters / nSecondBlocks;
-  if (blockSize2 < 1)
-    blockSize2 = 1;
-
-  std::vector<vertex_t> secondBlockPrototypes;
-  for (unsigned int b = 0; b < nSecondBlocks; ++b) {
-    vertex_t blockVertex;
-    unsigned int startIdx = b * blockSize2;
-    // Ensure the last block gets any remaining clusters:
-    unsigned int endIdx = (b == nSecondBlocks - 1) ? totalClusters : (b + 1) * blockSize2;
-    for (unsigned int i = startIdx; i < endIdx; ++i) {
-      blockVertex.addItem(combined_vertex_prototypes.zvtx_vec[i],
-			  combined_vertex_prototypes.rho_vec[i]);
-    }
-    secondBlockPrototypes.push_back(blockVertex);
-    std::cout << "Second loop block " << b << " size: " << blockVertex.getSize() << std::endl;
-  }
-
-  // --- Run second DA on each block ---
-  track_t tks = fill(sorted_tracks);
-  tks.extractRaw();
-
-  for (unsigned int b = 0; b < secondBlockPrototypes.size(); ++b) {
-    // Start with a lower temperature (i.e. higher beta) for the second in-block DA.
-    double beta_second =  1e-3;              // betasave * 0.9;
-    double second_loop_threshold = betamax_ * sqrt(coolingFactor_);
-    std::cout << "Starting second DA on block " << b << " with beta = " << beta_second << std::endl;
-
-    while (beta_second < second_loop_threshold) {
-      while (merge(secondBlockPrototypes[b], tks, beta_second)) {
-	update(beta_second, tks, secondBlockPrototypes[b], rho0, false);
-      }
-      split(beta_second, tks, secondBlockPrototypes[b]);
-      beta_second = beta_second / coolingFactor_;
-      thermalize(beta_second, tks, secondBlockPrototypes[b], delta_highT_);
-      std::cout << "Block " << b << ": beta = " << beta_second << ", clusters = " << secondBlockPrototypes[b].getSize() << std::endl;
-    }
-  }
-  auto stop_clustering_2ndDAB_loop = std::chrono::high_resolution_clock::now();
-
-  std::chrono::duration<int, std::micro> first_2ndDAB_clustering = std::chrono::duration_cast<std::chrono::microseconds>(stop_clustering_2ndDAB_loop - start_clustering_2ndDAB_loop);
-  std::cout<<"the second DAB loop clustering took ms:"<< first_2ndDAB_clustering.count() << std::endl;
-  // --- Combine refined blocks ---
-  vertex_t refinedCombinedClusters;
-  for (unsigned int b = 0; b < secondBlockPrototypes.size(); ++b) {
-    for (unsigned int i = 0; i < secondBlockPrototypes[b].getSize(); ++i) {
-      refinedCombinedClusters.addItem(secondBlockPrototypes[b].zvtx_vec[i],
-				      secondBlockPrototypes[b].rho_vec[i]);
-    }
-  }
-  std::cout << "Final refined clusters after second in-block DA: " << refinedCombinedClusters.getSize() << std::endl;
-
-  for (unsigned int a = 0; a+1 < blockbordervec.size();a++){
-    std::vector<unsigned int> blockx = blockbordervec[a];
-    std::vector<unsigned int> blocky = blockbordervec[a+1];
-
-    // additional check to make sure blockborder is correctly set up and it does in fact overlap
-    if(blockx[1]>blocky[0]){
-      //now iterate over every overlap and add each overlap to the set
-      for (unsigned int i = blockx[1]; i < blocky[0]; i++)
-        {
-	  overlapRegions.insert(i);
-        }
-    }else{
-      std::cout << "Error in calculating overlap" << std::endl;
-
-    }
-  }
-
-  for (unsigned int  i = 0; i < combined_vertex_prototypes.getSize(); ++i)
-    {
-      if (overlapRegions.find(i)!= overlapRegions.end() )
-        {
-	  combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / 2;
-        }
-      rohsums += combined_vertex_prototypes.rho_vec[i];
-    }
-
-  for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
-    {
-      combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / rohsums;
-    }
-
-  // Output the combined vertex prototype's cluster positions
-  for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
-    {
-      oss_cluster << "loop2nDAB;" << i << ";" << combined_vertex_prototypes.zvtx_vec[i] << ";" << combined_vertex_prototypes.rho_vec[i] << std::endl;
-    }
-  // using refinedCombinedClusters (or assign it to y, for example):
   vertex_t y;
 
 
   y = combined_vertex_prototypes;
   cout << "size before" << y.getSize() << std::endl;
-  oss << "Annealing_in_blocks_2nd_loop;" << first_2ndDAB_clustering.count() << ";" << combined_vertex_prototypes.getSize() << ";none" << std::endl;
-
+  
 
   vector<TransientVertex> clusters;
-  //track_t tks = fill(sorted_tracks); // track_t&& doesent work it then says out of scope for while merge loop
 
   if (tks.getSize() == 0){
     return clusters;
@@ -1443,16 +1330,14 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
   std::chrono::duration<int, std::micro> thermalize_inbetween_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(thermalizing_inbetween_loop_stop - thermalizing_inbetween_loop_start);
   std::cout<<"thermalizing innbetween took ms:"<< thermalize_inbetween_loop_clustering.count() << std::endl;
-  oss << "thermalizing_between_loops_1_2;" << thermalize_inbetween_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
+  oss << "thermalizing_between_loops;" << thermalize_inbetween_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
 
-  //*/// 
-  // insert da global code here
 
   // global annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
   //hardcoding beta to 0.005 not sure if this is necessary but maybe?
 
   beta = betasave *0.9; //*0.5;
-  cout << "beta before 2 loop" << beta << std::endl;
+  cout << "beta before general DA loop" << beta << std::endl;
 
   // beta = 0.005;
   double secondbestastop =  betamax_ * sqrt(coolingFactor_);/// betamax_ * sqrt(coolingFactor_);
