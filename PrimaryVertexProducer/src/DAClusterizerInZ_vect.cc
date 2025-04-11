@@ -1223,7 +1223,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
       // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-      double firstbestastop = 1e-5;
+      double firstbestastop = 1e-4;
       int iterations = 0;
 
 
@@ -1303,7 +1303,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
   // Make a second loop with da in blocks but with only 2 blocks
 
   // --- Specify number of blocks for the second DA ---
-  unsigned int nSecondBlocks = 2;
+  unsigned int nSecondBlocks = 3;
   auto start_clustering_2ndDAB_loop = std::chrono::high_resolution_clock::now();
   // Optional: Sort the clusters by z position if not already sorted.
   std::vector<std::pair<float, float>> proto;
