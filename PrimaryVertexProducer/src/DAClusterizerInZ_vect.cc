@@ -1222,7 +1222,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
       // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-      double firstbestastop = 0.001;
+      double firstbestastop = 0.1;
       int iterations = 0;
 
 
@@ -1297,7 +1297,6 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
     {
       oss_cluster << "loop1;" << i << ";" << combined_vertex_prototypes.zvtx_vec[i] << ";" << combined_vertex_prototypes.rho_vec[i] << std::endl;
     }
-  oss << "Annealing_in_blocks_1nd_loop;" << first_loop_clustering.count() << ";" << combined_vertex_prototypes.getSize() << ";none" << std::endl;
 
   // (re)defining variables to fit to classic da
   vertex_t y;  // the vertex prototypes
