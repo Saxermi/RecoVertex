@@ -71,7 +71,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
                                              acc)[0u];  // Max vertices size is 512 over number of blocks in grid
       //debugging purpose
-    int blockBase  = maxVerticesPerBlock * blockIdx;   // <───  ADD THIS
+    int blockBase  = maxVerticesPerBlock * blockIdx;   //ADD THIS
 
 
     double zrange_min_ = 0.1;                           // Hard coded as in CPU version
@@ -83,10 +83,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       double zmin = tracks[itrack].z() - zrange;
 
       // First the lower bound
-      int kmin = std::min(
-          (int)(maxVerticesPerBlock * blockIdx) + vertices.nV(blockIdx) - 1,
-          tracks[itrack]
-              .kmin());  //We might have deleted a vertex, so be careful if the track is in one extreme of the axis
+    //  int kmin = std::min(
+      //    (int)(maxVerticesPerBlock * blockIdx) + vertices.nV(blockIdx) - 1,
+        //  tracks[itrack]
+          //    .kmin());  //We might have deleted a vertex, so be careful if the track is in one extreme of the axis
+
+     int first = maxVerticesPerBlock * blockIdx;
+      int last  = first + int(vertices[blockIdx].nV()) - 1;       // highest legal index
+                 // == blockBase
+    int kmin = std::max(first, std::min(last, tracks[itrack].kmin()));
 
       // debug before first dereference that can blow up
     DBG_PRINT(acc,
@@ -112,9 +117,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
       // And now do the same for the upper bound
       double zmax = tracks[itrack].z() + zrange;
-      int kmax = std::max(0,
-                          std::min(maxVerticesPerBlock * blockIdx + (int)(vertices[blockIdx].nV()) - 1,
-                                   (int)(tracks[itrack].kmax()) - 1));
+      //int kmax = std::max(0,
+        //                  std::min(maxVerticesPerBlock * blockIdx + (int)(vertices[blockIdx].nV()) - 1,
+          //                         (int)(tracks[itrack].kmax()) - 1));
+      int kmax = std::max(first, std::min(last, tracks[itrack].kmax() - 1));
+
 
 
     DBG_PRINT(acc,
