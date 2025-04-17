@@ -110,7 +110,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       // Need to have all vertex before arbitrating and deciding what we keep
       alpaka::wait(iEvent.queue());
         // arbitrate also causes an index out of error errror
-      //clusterizerKernel_.arbitrate(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
+      clusterizerKernel_.arbitrate(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       alpaka::wait(iEvent.queue());
       //// And then fit
       FitterAlgo fitterKernel_{iEvent.queue(), deviceVertex.view().metadata().size(), fitterParams};
