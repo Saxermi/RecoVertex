@@ -13,6 +13,23 @@
 #define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO 0
 #endif
 
+
+static constexpr bool DBG_SET_VTX_RANGE = true;
+
+#ifndef DBG_PRINT
+# define DBG_PRINT(acc, ...)                                                   \
+    do {                                                                      \
+      if (DBG_SET_VTX_RANGE && once_per_block(acc))                           \
+        printf(__VA_ARGS__);                                                  \
+    } while (false)
+#endif
+// fallback definition in case once_per_block(acc) is not available
+#ifndef once_per_block
+# define once_per_block(acc) (alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u] == 0)
+#endif
+
+
+
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
   using namespace cms::alpakatools;
   //////////////////////
@@ -45,7 +62,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                           portablevertex::VertexDeviceCollection::View vertices,
                                           const portablevertex::ClusterParamsHostCollection::ConstView cParams,
                                           double& osumtkwt,
-                                          double& _beta,
+                                          double& _beta, 
                                           int trackBlockSize) {
     // These updates the range of vertices associated to each track through the kmin/kmax variables
     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
@@ -53,17 +70,32 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
     int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
                                              acc)[0u];  // Max vertices size is 512 over number of blocks in grid
+      //debugging purpose
+    int blockBase  = maxVerticesPerBlock * blockIdx;   // <───  ADD THIS
+
+
     double zrange_min_ = 0.1;                           // Hard coded as in CPU version
     for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
          itrack += blockSize) {
+
       // Based on current temperature (regularization term) and track position uncertainty, only keep relevant vertices
       double zrange = std::max(cParams.zrange() / sqrt((_beta)*tracks[itrack].oneoverdz2()), zrange_min_);
       double zmin = tracks[itrack].z() - zrange;
+
       // First the lower bound
       int kmin = std::min(
           (int)(maxVerticesPerBlock * blockIdx) + vertices.nV(blockIdx) - 1,
           tracks[itrack]
               .kmin());  //We might have deleted a vertex, so be careful if the track is in one extreme of the axis
+
+      // debug before first dereference that can blow up
+    DBG_PRINT(acc,
+      "[DBG kmin-pre] block=%d track=%d idx=%d local=%d nV=%d\n",
+      blockIdx, itrack, kmin, kmin - blockBase, vertices.nV(blockIdx));
+
+
+
+
       if (vertices[vertices[kmin].order()].z() >
           zmin) {  // If the vertex position in z is bigger than the minimum, go down through all vertices position until finding one that is too far
         while ((kmin > maxVerticesPerBlock * blockIdx) &&
@@ -83,6 +115,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       int kmax = std::max(0,
                           std::min(maxVerticesPerBlock * blockIdx + (int)(vertices[blockIdx].nV()) - 1,
                                    (int)(tracks[itrack].kmax()) - 1));
+
+
+    DBG_PRINT(acc,
+        "[DBG kmax-pre] block=%d track=%d idx=%d local=%d nV=%d\n",
+        blockIdx, itrack, kmax, kmax - blockBase, vertices.nV(blockIdx));
+
       if (vertices[vertices[kmax].order()].z() < zmax) {
         while (
             (kmax < (maxVerticesPerBlock * blockIdx + (int)(vertices[blockIdx].nV()) - 1)) &&
