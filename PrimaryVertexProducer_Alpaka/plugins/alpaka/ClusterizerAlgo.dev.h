@@ -1092,7 +1092,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
     alpaka::syncBlockThreads(acc);
     // And now purge
-    /*
+   // /*
     nprev = vertices[blockIdx].nV();
     purge(acc, tracks, vertices, cParams, osumtkwt, _beta, rho0, trackBlockSize);
     while (nprev != vertices[blockIdx].nV()) {
@@ -1101,7 +1101,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       purge(acc, tracks, vertices, cParams, osumtkwt, _beta, rho0, trackBlockSize);
       alpaka::syncBlockThreads(acc);
     }
-      */
+    //  */
 
 
     while (_beta < 1. / cParams.Tstop()) {  // Cool down to stop temperature
