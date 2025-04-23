@@ -1228,7 +1228,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
       // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-      double firstbestastop = 0.5;
+      double firstbestastop = 0.25;
       int iterations = 0;
 
 
@@ -1349,7 +1349,6 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
   double secondbestastop =  betamax_ * sqrt(coolingFactor_);/// betamax_ * sqrt(coolingFactor_);
   cout << "betafreeze second loop" << secondbestastop << std::endl;
   cout << "made it to the second loop" << std::endl;
-  beta = secondbestastop;
   auto start_clustering_second_loop = std::chrono::high_resolution_clock::now();
 
   // main loop which takes a long time for high T; this runs until stable
