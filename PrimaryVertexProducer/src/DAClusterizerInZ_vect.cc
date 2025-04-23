@@ -829,6 +829,8 @@ std::ostringstream oss_cluster;
 oss_cluster << "Current date and time: " << std::asctime(now_tm) << "running the verticest in blocks method" << std::endl;
 oss_cluster << "checkpoint ;cluster number; z position;roh" << std::endl;
 
+
+auto start_overall_timing = std::chrono::high_resolution_clock::now();
 // csv end
 
 
@@ -1027,6 +1029,10 @@ std::cout<<"some more cooling  took ms :"<< cool_some_more_duration.count() << s
 cout << "size after some more cooling" << y.getSize() << std::endl;
 oss << "some more cooling;" << cool_some_more_duration.count() << ";" << y.getSize() << ";none" << std::endl;
 
+auto stop_overall_timing = std::chrono::high_resolution_clock::now();
+
+std::chrono::duration<int, std::micro> overall_time = std::chrono::duration_cast<std::chrono::microseconds>(stop_overall_timing - start_overall_timing);
+oss << "final time and size;" << overall_time.count() << ";" << y.getSize() << ";none" << std::endl;
 #ifdef DEBUG
   verify(y, tks);
   if (DEBUGLEVEL > 0) {
