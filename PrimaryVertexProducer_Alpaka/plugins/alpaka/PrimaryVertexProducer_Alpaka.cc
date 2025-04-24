@@ -21,6 +21,43 @@
 #include "ClusterizerAlgo.h"
 #include "FitterAlgo.h"
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
   /**
    * This class does vertexing by
@@ -105,16 +142,17 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       //// Then run the clusterizer per blocks
       ClusterizerAlgo clusterizerKernel_{iEvent.queue(), blockSize};
       clusterizerKernel_.clusterize(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
-      clusterizerKernel_.resplit_tracks(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
-      clusterizerKernel_.reject_outliers(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
+      //clusterizerKernel_.resplit_tracks(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
+      //clusterizerKernel_.reject_outliers(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       // Need to have all vertex before arbitrating and deciding what we keep
       alpaka::wait(iEvent.queue());
-        // arbitrate also causes an index out of error errror
-      clusterizerKernel_.arbitrate(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
+      std::cout << "ended clustering in blocks" << std::endl;
+      // arbitrate also causes an index out of error errror
+      //clusterizerKernel_.arbitrate(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       alpaka::wait(iEvent.queue());
       //// And then fit
-      FitterAlgo fitterKernel_{iEvent.queue(), deviceVertex.view().metadata().size(), fitterParams};
-      fitterKernel_.fit(iEvent.queue(), tracksInBlocks, deviceVertex, beamSpot);
+      //FitterAlgo fitterKernel_{iEvent.queue(), deviceVertex.view().metadata().size(), fitterParams};
+      //fitterKernel_.fit(iEvent.queue(), tracksInBlocks, deviceVertex, beamSpot);
       // Put the vertices in the event as a portable collection
       iEvent.emplace(devicePutToken_, std::move(deviceVertex));
     }
