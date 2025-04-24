@@ -20,42 +20,10 @@
 #include "BlockAlgo.h"
 #include "ClusterizerAlgo.h"
 #include "FitterAlgo.h"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// adding std vect
+#include <vector>
+#include <cstdint>
+#include <iomanip>
 
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
@@ -128,6 +96,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       int32_t nT = inputtracks.view().metadata().size();
       int32_t nBlocks = nT > blockSize ? int32_t((nT - 1) / (blockOverlap * blockSize))
                                        : 1;  // If the block size is big enough we process everything at once
+
+   
+
+
+
+
+
       // Now the device collections we still need
       portablevertex::TrackDeviceCollection tracksInBlocks{nBlocks * blockSize, iEvent.queue()};  // As high as needed
       portablevertex::VertexDeviceCollection deviceVertex{
@@ -142,11 +117,58 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       //// Then run the clusterizer per blocks
       ClusterizerAlgo clusterizerKernel_{iEvent.queue(), blockSize};
       clusterizerKernel_.clusterize(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
+      //waiting for clustering to end 
+      alpaka::wait(iEvent.queue());
+
+      // copy vertices back to host
+    portablevertex::VertexHostCollection hostProtos{
+      deviceVertex.view().metadata().size(), cms::alpakatools::host() };
+
+      cms::alpakatools::copyAsync(iEvent.queue(), deviceVertex, hostProtos);
+alpaka::wait(iEvent.queue());     // make sure the copy is finished
+
+ //// coppy tracks as well
+      portablevertex::TrackHostCollection hostTracks{
+        inputtracks.view().metadata().size(), cms::alpakatools::host() };
+
+      cms::alpakatools::copyAsync(iEvent.queue(), inputtracks, hostTracks);
+      alpaka::wait(iEvent.queue());
+// check if this actually works the way we anticiapte
+
+
+
+
+// now we extract the z coordinates of the tracks used as blocborders
+
+
+/// now convert the prototypes and tracks into a format we can use 
+
+
+
+
+// now open open DA_Clusterizer_in_z_vect.cc 
+// we define a new custom method for that or just use the global annealing method already avaible and tweak it a bit
+
+
+
+
+
       //clusterizerKernel_.resplit_tracks(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       //clusterizerKernel_.reject_outliers(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       // Need to have all vertex before arbitrating and deciding what we keep
       alpaka::wait(iEvent.queue());
       std::cout << "ended clustering in blocks" << std::endl;
+
+
+
+
+
+
+
+
+
+
+
       // arbitrate also causes an index out of error errror
       //clusterizerKernel_.arbitrate(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       alpaka::wait(iEvent.queue());
