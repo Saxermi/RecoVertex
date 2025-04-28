@@ -169,7 +169,14 @@ public:
       exp_arg = &exp_arg_vec.front();
     }
   };
+  // data structure used to get the vertex prototypes from the gpus
+struct VertexProtoType
+{
+  std::vector<double> Vtx_proto_z_vec;
+  std::vector<double> Vtx_proto_rho_vec;
+  unsigned int getSize() const { return Vtx_proto_z_vec.size(); }
 
+};
   DAClusterizerInZ_vect(const edm::ParameterSet &conf);
 
   std::vector<std::vector<reco::TransientTrack> > clusterize(
@@ -180,6 +187,8 @@ public:
   std::vector<TransientVertex> vertices_no_blocks_hybrid(const std::vector<reco::TransientTrack> &tracks) const;
 
   std::vector<TransientVertex> vertices_in_blocks(const std::vector<reco::TransientTrack> &tracks) const;
+std::vector<TransientVertex> Global_DA_after_DAB(const VertexProtoType& vertexCandidates, const std::vector<reco::TransientTrack> &tracks) const;
+
   std::vector<TransientVertex> fill_vertices(double beta, double rho0, track_t &tracks, vertex_t &vertices) const;
 
   track_t fill(const std::vector<reco::TransientTrack> &tracks) const;

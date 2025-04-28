@@ -1833,6 +1833,183 @@ cout << "wrote csv" << y.getSize() << std::endl;
 }  // end of vertices_in_blocks
 
 
+// Global DA after DAB on GPUS
+vector<TransientVertex> DAClusterizerInZ_vect::Global_DA_after_DAB(const VertexProtoType VertexCandiates, const vector<reco::TransientTrack>& tracks) const {
+
+
+
+
+
+
+vector<reco::TransientTrack> sorted_tracks; // initalizes empty vectors and coppies all tracks into it
+vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
+// using this vector we collect all vertices protoypes form
+  vertex_t combined_vertex_prototypes;
+//converting from input struct to vertex_t data structure used by clusterizer
+ for (unsigned int i = 0; i < VertexCandiates.getSize(); ++i)
+    {
+      combined_vertex_prototypes.addItem(VertexCandiates.Vtx_proto_z_vec[i], VertexCandiates.Vtx_proto_rho_vec[i]);
+     // std::cout << "clusternumber::::::" << "z pos::::::" << "roh" << std::endl;
+      //std::cout << i <<"::::::"<< VertexCandiates.zvtx_vec[i]  <<"::::::"<<VertexCandiates.rho_vec[i] << std::endl;
+    }
+
+
+
+
+
+  double betasave = 0.0;
+  // sorting tracks
+  for (unsigned int i = 0; i < tracks.size(); i++)
+  {
+    sorted_tracks.push_back(tracks[i]);
+  }
+//sort tracks
+  std::sort(sorted_tracks.begin(),
+            sorted_tracks.end(),
+            [](const reco::TransientTrack& a, const reco::TransientTrack& b) -> bool {
+              return (a.stateAtBeamLine().trackStateAtPCA()).position().z() <
+                     (b.stateAtBeamLine().trackStateAtPCA()).position().z();
+            });
+
+  unsigned int nBlocks = (unsigned int)std::floor(sorted_tracks.size() / (block_size_ * (1 - overlap_frac_)));
+  if (nBlocks < 1) {
+    nBlocks = 1;
+    edm::LogWarning("DAClusterizerinZ_vect")
+        << "Warning nBlocks was 0 with ntracks = " << sorted_tracks.size() << " block_size = " << block_size_
+        << " and overlap fraction = " << overlap_frac_ << ". Setting nBlocks = 1";
+  }
+
+
+
+
+  double rho0, beta; // get blocborders
+  
+// correct roh values
+float rohsums = 0;
+
+for (unsigned int  i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  rohsums += combined_vertex_prototypes.rho_vec[i];
+}
+
+
+
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
+{
+  combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / rohsums;
+  }
+
+// Output the combined vertex prototype's cluster positions
+
+
+// (re)defining variables to fit to classic da
+vertex_t vertex_prototypes;  // the vertex prototypes
+
+vertex_prototypes = combined_vertex_prototypes;
+
+
+vector<TransientVertex> clusters;
+ track_t tks = fill(sorted_tracks); // track_t&& doesent work it then says out of scope for while merge loop
+
+ if (tks.getSize() == 0){
+    return clusters;
+ }
+
+
+
+//trying to thermalize
+
+    thermalize(beta, tks, vertex_prototypes, delta_highT_);
+     while (merge(vertex_prototypes, tks, beta))
+    {
+      update(beta, tks, vertex_prototypes, rho0, false); // check update method again wether merging done correctly
+    } // merging after thermalizing
+//*/// 
+
+// global annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
+  //
+
+    beta = 1;                                                  //nonesense value as placeholder;
+    double secondbestastop = betamax_ * sqrt(coolingFactor_);  /// betamax_ * sqrt(coolingFactor_);
+
+    // main loop which takes a long time for high T; this runs until stable
+    while (beta < secondbestastop) {
+      while (merge(vertex_prototypes, tks, beta)) {
+        update(beta, tks, vertex_prototypes, rho0, false);
+      }
+      split(beta, tks, vertex_prototypes);
+      cout << "beta is" << beta << std::endl;
+      cout << "secondbestastop is" << secondbestastop << std::endl;
+
+      beta = beta / coolingFactor_;
+      thermalize(beta, tks, vertex_prototypes, delta_highT_);
+    }
+
+
+#ifdef DEBUG
+    verify(y, tks);
+
+    if (DEBUGLEVEL > 0) {
+      std::cout << "DAClusterizerInZSubCluster_vect::vertices :"
+                << "last round of splitting" << std::endl;
+    }
+#endif
+
+
+
+//trying to thermalize
+
+    thermalize(beta, tks, vertex_prototypes, delta_highT_);
+     while (merge(vertex_prototypes, tks, beta))
+    {
+      update(beta, tks, vertex_prototypes, rho0, false); // check update method again wether merging done correctly
+    } // merging after thermalizing
+  // Right place?; Further cooling post spiltting to get closer to T=1, closer to Gauss-dist
+  unsigned int ntry = 0;
+  double threshold = 1.0;
+  while (split(beta, tks, vertex_prototypes, threshold) && (ntry++ < 10)) {
+    thermalize(beta, tks, vertex_prototypes, delta_highT_, rho0);  // rho0 = 0. here
+    while (merge(vertex_prototypes, tks, beta)) {
+      update(beta, tks, vertex_prototypes, rho0, false);
+    }
+
+    // relax splitting a bit to reduce multiple split-merge cycles of the same cluster
+    threshold *= 1.1;
+  }
+  // switch on outlier rejection at T=Tmin
+  if (dzCutOff_ > 0) {
+    rho0 = vertex_prototypes.getSize() > 1 ? 1. / vertex_prototypes.getSize() : 1.;
+    for (unsigned int a = 0; a < 5; a++) {
+      update(beta, tks, vertex_prototypes, a * rho0 / 5.);  // adiabatic turn-on
+    }
+  }
+
+  thermalize(beta, tks, vertex_prototypes, delta_lowT_, rho0);
+  // merge again (some cluster split by outliers collapse here)
+  while (merge(vertex_prototypes, tks, beta)) {
+    set_vtx_range(beta, tks, vertex_prototypes);
+    update(beta, tks, vertex_prototypes, rho0, false);
+  }
+
+  // go down to the purging temperature (if it is lower than Tmin)
+  while (beta < betapurge_) {
+    beta = min(beta / coolingFactor_, betapurge_);
+    thermalize(beta, tks, vertex_prototypes, delta_lowT_, rho0);
+  }
+  // eliminate insignificant vertices, this is more restrictive at higher T
+  while (purge(vertex_prototypes, tks, rho0, beta)) {
+    thermalize(beta, tks, vertex_prototypes, delta_lowT_, rho0);
+  }
+  // optionally cool some more without doing anything, to make the track assignment harder (harder = sharper more clear)
+  while (beta < betastop_) {
+    beta = min(beta / coolingFactor_, betastop_);
+    thermalize(beta, tks, vertex_prototypes, delta_lowT_, rho0);
+  }
+  return fill_vertices(beta, rho0, tks, vertex_prototypes);
+
+
+
+} 
 
 
 
