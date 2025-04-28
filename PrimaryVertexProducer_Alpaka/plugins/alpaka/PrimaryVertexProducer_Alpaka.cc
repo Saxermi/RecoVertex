@@ -112,7 +112,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       clusterizerKernel_.clusterize(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       //waiting for clustering to end 
       alpaka::wait(iEvent.queue());
-      
+      /*
 // 1) wait for device work to finish
   alpaka::wait(iEvent.queue());
 
@@ -132,6 +132,7 @@ cms::alpakatools::copyAsync(
  alpaka::wait(iEvent.queue());
 
 /* 5.  Debug print – hostProtos is now fully valid on the CPU. */
+/*
 const auto hostView = hostProtos.view();
 for (std::size_t i = 0, nv = hostView.metadata().size(); i < nv; ++i)
   std::cout << hostView.z[i] << '\n';
@@ -182,8 +183,8 @@ for (std::size_t i = 0; i < nVerts; ++i) {
       //clusterizerKernel_.resplit_tracks(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       //clusterizerKernel_.reject_outliers(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       // Need to have all vertex before arbitrating and deciding what we keep
-      alpaka::wait(iEvent.queue());
-      std::cout << "ended clustering in blocks" << std::endl;
+     // alpaka::wait(iEvent.queue());
+   //   std::cout << "ended clustering in blocks" << std::endl;
 
 
 

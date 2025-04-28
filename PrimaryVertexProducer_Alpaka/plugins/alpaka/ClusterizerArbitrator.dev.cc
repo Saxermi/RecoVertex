@@ -21,7 +21,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                     const portablevertex::ClusterParamsHostCollection::ConstView cParams,
                                                     int32_t griddim) {
     // Multiblock vertex arbitration
-    double beta = 1. / cParams.Tstop();
+    //double beta = 1. / cParams.Tstop(); unused
     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
     int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
     auto& z = alpaka::declareSharedVar<float[128], __COUNTER__>(acc);
@@ -31,10 +31,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       int nTrueVertex = 0;
       int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
                                                acc)[0u];  // Max vertices size is 512 over number of blocks in grid
+      printf("resortVerticesAndAssing maxVerticesPerBlock = %i\n", maxVerticesPerBlock );
       for (int32_t blockid = 0; blockid < griddim; blockid++) {
         for (int ivtx = blockid * maxVerticesPerBlock; ivtx < blockid * maxVerticesPerBlock + vertices[blockid].nV();
              ivtx++) {
           int ivertex = vertices[ivtx].order();
+	  printf("resortVerticesAndAssing blockid = %i ,  nV= %i ,   ivtx = %i ,  ivertex=%i\n",blockid, vertices[blockid].nV(), ivtx, ivertex);
+
           if ((vertices[ivertex].rho() < 10000) && (abs(vertices[ivertex].z()) < 30)) {
             z[nTrueVertex] = vertices[ivertex].z();
             rho[nTrueVertex] = vertices[ivertex].rho();
@@ -47,11 +50,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       vertices[0].nV() = nTrueVertex;
     }
     alpaka::syncBlockThreads(acc);
-
+    printf("got this far\n");
     auto& orderedIndices = alpaka::declareSharedVar<uint16_t[1024], __COUNTER__>(acc);
     auto& sws = alpaka::declareSharedVar<uint16_t[1024], __COUNTER__>(acc);
 
     int const& nvFinal = vertices[0].nV();
+    printf("nvFinal = %i\n",nvFinal);
 
     cms::alpakatools::radixSort<Acc1D, float, 2>(acc, z, orderedIndices, sws, nvFinal);
     alpaka::syncBlockThreads(acc);
@@ -64,6 +68,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
     }
     alpaka::syncBlockThreads(acc);
+    printf("got to the end");
+    /*
     double zrange_min_ = 0.1;
 
     for (int itrack = threadIdx; itrack < tracks.nT(); itrack += blockSize) {
@@ -141,6 +147,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       tracks[itrack].kmax() = iMax + 1;
     }
     alpaka::syncBlockThreads(acc);
+    */
   }  //resortVerticesAndAssign
 
   template <bool debug = false, typename TAcc, typename = std::enable_if_t<alpaka::isAccelerator<TAcc>>>
@@ -155,6 +162,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       for (int k = 0; k < vertices[0].nV(); k += 1) {  //TODO: ithread, blockSize
         int ivertex = vertices[k].order();
         vertices[ivertex].ntracks() = 0;
+	/*
         for (int itrack = 0; itrack < tracks.nT(); itrack += 1) {
           if (not(tracks[itrack].isGood()))
             continue;  // Remove duplicates
@@ -176,11 +184,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           vertices[ivertex].isGood() = false;  // No longer needed
           continue;                            //Skip vertex if it has no tracks
         }
+	*/
         vertices[ivertex].x() = 0;
         vertices[ivertex].y() = 0;
+	vertices[ivertex].isGood() = true;
       }
     }
     alpaka::syncBlockThreads(acc);
+    /*
     if (once_per_block(acc)) {
       // So we now check whether each vertex is further enough from the previous one
       for (int k = 0; k < vertices[0].nV(); k++) {
@@ -219,6 +230,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
     }
     alpaka::syncBlockThreads(acc);
+    */
   }  //finalizeVertices
 
   class arbitrateKernel {
@@ -243,7 +255,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       alpaka::syncBlockThreads(acc);
-      finalizeVertices(acc, tracks, vertices, cParams);  // In CUDA it used to be verticesAndClusterize
+      ////finalizeVertices(acc, tracks, vertices, cParams);  // In CUDA it used to be verticesAndClusterize
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
       if (once_per_block(acc)) {
         printf("[ClusterizerAlgoArbitrator::operator()] Vertices finalized for block %i\n", blockIdx);
