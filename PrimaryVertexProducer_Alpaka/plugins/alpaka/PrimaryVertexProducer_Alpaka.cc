@@ -96,13 +96,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       int32_t nT = inputtracks.view().metadata().size();
       int32_t nBlocks = nT > blockSize ? int32_t((nT - 1) / (blockOverlap * blockSize))
                                        : 1;  // If the block size is big enough we process everything at once
-
-   
-
-
-
-
-
       // Now the device collections we still need
       portablevertex::TrackDeviceCollection tracksInBlocks{nBlocks * blockSize, iEvent.queue()};  // As high as needed
       portablevertex::VertexDeviceCollection deviceVertex{
@@ -119,7 +112,31 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       clusterizerKernel_.clusterize(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       //waiting for clustering to end 
       alpaka::wait(iEvent.queue());
+      
+// 1) wait for device work to finish
+  alpaka::wait(iEvent.queue());
 
+  // 2) prepare a host buffer of the right size
+ const std::size_t nVerts = deviceVertex.view().metadata().size();
+portablevertex::VertexHostCollection hostProtos{
+ int32_t( nVerts),
+  cms::alpakatools::host()
+};
+
+cms::alpakatools::copyAsync(
+  iEvent.queue(),
+  deviceVertex.view(),      // device-side view
+  hostProtos.view()         // host-side view
+);
+
+ alpaka::wait(iEvent.queue());
+
+/* 5.  Debug print – hostProtos is now fully valid on the CPU. */
+const auto hostView = hostProtos.view();
+for (std::size_t i = 0, nv = hostView.metadata().size(); i < nv; ++i)
+  std::cout << hostView.z[i] << '\n';
+
+/*
       // copy vertices back to host
     portablevertex::VertexHostCollection hostProtos{
       deviceVertex.view().metadata().size(), cms::alpakatools::host() };
@@ -127,18 +144,27 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       cms::alpakatools::copyAsync(iEvent.queue(), deviceVertex, hostProtos);
 alpaka::wait(iEvent.queue());     // make sure the copy is finished
 
- //// coppy tracks as well
-      portablevertex::TrackHostCollection hostTracks{
-        inputtracks.view().metadata().size(), cms::alpakatools::host() };
+//for (auto const& v : hostProtos) {
+//    std::cout << v.z() << "\n";
+//}
+// get a view of the host buffer
+auto hostView = hostProtos.view();
+auto nVerts  = hostView.metadata().size();
+auto verts   = hostView.data();  // pointer to Vertex[]
 
-      cms::alpakatools::copyAsync(iEvent.queue(), inputtracks, hostTracks);
-      alpaka::wait(iEvent.queue());
-// check if this actually works the way we anticiapte
-
-
-
+for (std::size_t i = 0; i < nVerts; ++i) {
+    std::cout << verts[i].z() << "\n";
+}
+*/
+// check if this acdeviceVertexually works the way we anticiapte
 
 // now we extract the z coordinates of the tracks used as blocborders
+
+
+
+
+
+
 
 
 /// now convert the prototypes and tracks into a format we can use 
