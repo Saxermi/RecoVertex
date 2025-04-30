@@ -1132,7 +1132,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
   auto start_overall_timing = std::chrono::high_resolution_clock::now();
   // using this vector we collect all vertices protoypes form
   vertex_t combined_vertex_prototypes;
-  double betasave = 0.0;
+  //double betasave = 0.0;
   for (unsigned int i = 0; i < tracks.size(); i++)
     {
       sorted_tracks.push_back(tracks[i]);
@@ -1228,7 +1228,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
       // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-      double firstbestastop = 0.25;
+      double firstbestastop = 0.1;
       int iterations = 0;
 
 
@@ -1254,7 +1254,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
         std::cout << i <<"::::::"<< y.zvtx_vec[i]  <<"::::::"<<y.rho_vec[i] << std::endl;
         }
 
-      betasave = beta;
+      //betasave = beta;
       // what if we thermalize combined_vertex_prototypes now?
 
       std::cout << "and the following niter" << iterations << std::endl;
@@ -1342,7 +1342,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
   // global annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
   //hardcoding beta to 0.005 not sure if this is necessary but maybe?
 
-  beta = betasave *0.9; //*0.5;
+  beta = betasave *0.9; //0.5;
   cout << "beta before general DA loop" << beta << std::endl;
 
   // beta = 0.005;
