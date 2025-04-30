@@ -1191,19 +1191,19 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
       for (unsigned int i = beginIdx; i < endIdx; i++)
         {
-	  block_tracks.push_back(sorted_tracks[i]);
+	        block_tracks.push_back(sorted_tracks[i]);
         }
       if (block_tracks.empty())
         {
-	  continue;
+	        continue;
         }
 
 
-        #ifdef DEBUG
+      #ifdef DEBUG
       std::cout << "Running vertices_in_blocks on" << std::endl;
       std::cout << "- block no." << block << " on " << nBlocks << " blocks " << std::endl;
       std::cout << "- block track size: " << sorted_tracks.size() << " - block size: " << block_size_ << std::endl;
-        #endif
+      #endif
       track_t&& tks = fill(block_tracks);
       tks.extractRaw();
 
@@ -1219,10 +1219,10 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
       beta = beta0(betamax_, tks, y);
       cout << "beta before 1 loop" << beta<< std::endl;
 
-        #ifdef DEBUG
+      #ifdef DEBUG
       if (DEBUGLEVEL > 0)
-	std::cout << "Beta0 is " << beta << std::endl;
-        #endif
+	      std::cout << "Beta0 is " << beta << std::endl;
+      #endif
 
       thermalize(beta, tks, y, delta_highT_);
 
@@ -1234,24 +1234,24 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
       while (beta < firstbestastop)
         {
-	  iterations++;
-	  while (merge(y, tks, beta))
-            {
-	      update(beta, tks, y, rho0, false);
-            }
-	  split(beta, tks, y);
+          iterations++;
+          while (merge(y, tks, beta))
+                  {
+              update(beta, tks, y, rho0, false);
+                  }
+          split(beta, tks, y);
 
-	  beta = beta / coolingFactor_;
-	  thermalize(beta, tks, y, delta_highT_);
+          beta = beta / coolingFactor_;
+          thermalize(beta, tks, y, delta_highT_);
         }
       // store vertex prototypes of the processed block
       // Add the refined vertex prototypes for this block to the combined vertex prototype
       std::cout << "outputting the block clusters" << std::endl;
       for (unsigned int i = 0; i < y.getSize(); ++i)
         {
-	  combined_vertex_prototypes.addItem(y.zvtx_vec[i], y.rho_vec[i]);
-	  std::cout << "clusternumber::::::" << "z pos::::::" << "roh" << std::endl;
-	  std::cout << i <<"::::::"<< y.zvtx_vec[i]  <<"::::::"<<y.rho_vec[i] << std::endl;
+        combined_vertex_prototypes.addItem(y.zvtx_vec[i], y.rho_vec[i]);
+        std::cout << "clusternumber::::::" << "z pos::::::" << "roh" << std::endl;
+        std::cout << i <<"::::::"<< y.zvtx_vec[i]  <<"::::::"<<y.rho_vec[i] << std::endl;
         }
 
       betasave = beta;
@@ -1338,7 +1338,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
   std::cout<<"thermalizing innbetween took ms:"<< thermalize_inbetween_loop_clustering.count() << std::endl;
   oss << "thermalizing_between_loops;" << thermalize_inbetween_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
 
-
+/*
   // global annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
   //hardcoding beta to 0.005 not sure if this is necessary but maybe?
 
@@ -1350,7 +1350,6 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
   cout << "betafreeze second loop" << secondbestastop << std::endl;
   cout << "made it to the second loop" << std::endl;
   auto start_clustering_second_loop = std::chrono::high_resolution_clock::now();
-
   // main loop which takes a long time for high T; this runs until stable
   while (beta < secondbestastop)
     {
@@ -1406,7 +1405,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
   std::chrono::duration<int, std::micro> thermalize_after_loop_clustering = std::chrono::duration_cast<std::chrono::microseconds>(thermalizing_after_loop_stop - thermalizing_after_loop_start);
   std::cout<<"thermalizing after loops took ms:"<< thermalize_after_loop_clustering.count() << std::endl;
   oss << "thermalizing_after_loops;" << thermalize_after_loop_clustering.count() << ";" << y.getSize() << ";none" << std::endl;
-
+*/
   auto further_cooling_timer_start = std::chrono::high_resolution_clock::now();
 
 
