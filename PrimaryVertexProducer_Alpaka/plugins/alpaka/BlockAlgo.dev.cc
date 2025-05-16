@@ -13,6 +13,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   class createBlocksKernel {
   public:
     template <typename TAcc, typename = std::enable_if_t<alpaka::isAccelerator<TAcc>>>
+
     ALPAKA_FN_ACC void operator()(const TAcc& acc,
                                   const portablevertex::TrackDeviceCollection::ConstView inputTracks,
                                   portablevertex::TrackDeviceCollection::View trackInBlocks,

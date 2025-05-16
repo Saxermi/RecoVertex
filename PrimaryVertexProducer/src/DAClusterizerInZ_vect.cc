@@ -1834,7 +1834,7 @@ cout << "wrote csv" << y.getSize() << std::endl;
 
 
 // Global DA after DAB on GPUS
-vector<TransientVertex> DAClusterizerInZ_vect::Global_DA_after_DAB(const VertexProtoType VertexCandiates, const vector<reco::TransientTrack>& tracks) const {
+std::vector<TransientVertex> DAClusterizerInZ_vect::Global_DA_after_DAB(const VertexProtoType& VertexCandiates, const vector<reco::TransientTrack>& tracks) const {
 
 
 
