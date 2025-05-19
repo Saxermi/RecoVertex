@@ -18,7 +18,7 @@
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 #include "DataFormats/Math/interface/AlgebraicROOTObjects.h"
 
-#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_PORTABLETRACKSOAPRODUCER 0
+//#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_PORTABLETRACKSOAPRODUCER 0
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
   /**
@@ -45,7 +45,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   class PortableTrackSoAProducer : public global::EDProducer<> {
   public:
     PortableTrackSoAProducer(edm::ParameterSet const& config)
-        :EDProducer(config), theTTBToken(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))) {
+        : global::EDProducer<>(config), theTTBToken(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))) {
       theConfig = config;
       trackToken_ = consumes<reco::TrackCollection>(config.getParameter<edm::InputTag>("TrackLabel"));
       beamSpotToken_ = consumes<reco::BeamSpot>(config.getParameter<edm::InputTag>("BeamSpotLabel"));
@@ -120,6 +120,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                      sortedTracksPair[idx].first,
                                      nTrueTracks);
         if (weight > 0) {
+          #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_PORTABLETRACKSOAPRODUCER
+            printf("[PortableTrackSoAProducer::produce()] Add track at z=%1.5f \n", sortedTracksPair[idx].second.stateAtBeamLine().trackStateAtPCA().position().z());
+          #endif
           nTrueTracks += 1;
           tview.nT() += 1;
           tview.totweight() += weight;

@@ -6,7 +6,7 @@
 
 #include "RecoVertex/PrimaryVertexProducer_Alpaka/plugins/alpaka/ClusterizerAlgo.h"
 
-#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR 1
+//#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR 1
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
   using namespace cms::alpakatools;
@@ -21,56 +21,77 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                     const portablevertex::ClusterParamsHostCollection::ConstView cParams,
                                                     int32_t griddim) {
     // Multiblock vertex arbitration
-    //double beta = 1. / cParams.Tstop(); unused
+    double beta = 1. / cParams.Tstop();
+    const unsigned int maxVerticesInSoA = 1024;
     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
     int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
-    auto& z = alpaka::declareSharedVar<float[128], __COUNTER__>(acc);
-    auto& rho = alpaka::declareSharedVar<float[128], __COUNTER__>(acc);
+    auto& z = alpaka::declareSharedVar<float[maxVerticesInSoA], __COUNTER__>(acc);
+    auto& rho = alpaka::declareSharedVar<float[maxVerticesInSoA], __COUNTER__>(acc);
     alpaka::syncBlockThreads(acc);
-    if (once_per_block(acc)) {
-      int nTrueVertex = 0;
-      int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
-                                               acc)[0u];  // Max vertices size is 512 over number of blocks in grid
-      printf("resortVerticesAndAssing maxVerticesPerBlock = %i\n", maxVerticesPerBlock );
-      for (int32_t blockid = 0; blockid < griddim; blockid++) {
-        for (int ivtx = blockid * maxVerticesPerBlock; ivtx < blockid * maxVerticesPerBlock + vertices[blockid].nV();
-             ivtx++) {
-          int ivertex = vertices[ivtx].order();
-	  printf("resortVerticesAndAssing blockid = %i ,  nV= %i ,   ivtx = %i ,  ivertex=%i\n",blockid, vertices[blockid].nV(), ivtx, ivertex);
+    #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
+        if (once_per_block(acc)) {
+            printf("[ClusterizerAlgoArbitrator::resortVerticesAndAssign()] Start reassignment\n");
+        }
+    #endif
 
-          if ((vertices[ivertex].rho() < 10000) && (abs(vertices[ivertex].z()) < 30)) {
-            z[nTrueVertex] = vertices[ivertex].z();
-            rho[nTrueVertex] = vertices[ivertex].rho();
-            nTrueVertex++;
-            if (nTrueVertex == 1024)
-              break;
+    /*for (unsigned int iv = 0; iv < maxVerticesInSoA; iv += blockSize) {
+        if (vertices[iv].isGood()){
+	    if ((vertices[iv].rho() > 10000) || (abs(vertices[iv].z()) > 30)){
+
+	        vertices[iv].isGood() = false;    
+	    }
+	}
+    }*/
+
+    #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
+        if (once_per_block(acc)) {
+            printf("[ClusterizerAlgoArbitrator::resortVerticesAndAssign()] Reorder vertices\n");
+        }
+    #endif
+
+    alpaka::syncBlockThreads(acc);
+    if (once_per_block(acc)){
+	unsigned int nTrueVertex = 0;
+        for (unsigned int ivO = 0; ivO < maxVerticesInSoA; ivO += 1) {
+	    int iv = vertices[ivO].order();
+	    if ((iv < 0) || (iv >= (int) maxVerticesInSoA)) continue; // Maximum vertices in the vertex SoA
+            if (vertices[iv].isGood()){
+                z[nTrueVertex] = vertices[iv].z();
+                rho[nTrueVertex] = vertices[iv].rho();
+                nTrueVertex++;
           }
         }
-      }
-      vertices[0].nV() = nTrueVertex;
+        vertices[0].nV() = nTrueVertex;
     }
     alpaka::syncBlockThreads(acc);
-    printf("got this far\n");
-    auto& orderedIndices = alpaka::declareSharedVar<uint16_t[1024], __COUNTER__>(acc);
-    auto& sws = alpaka::declareSharedVar<uint16_t[1024], __COUNTER__>(acc);
+
+    auto& orderedIndices = alpaka::declareSharedVar<uint16_t[maxVerticesInSoA], __COUNTER__>(acc);
+    auto& sws = alpaka::declareSharedVar<uint16_t[maxVerticesInSoA], __COUNTER__>(acc);
 
     int const& nvFinal = vertices[0].nV();
-    printf("nvFinal = %i\n",nvFinal);
 
     cms::alpakatools::radixSort<Acc1D, float, 2>(acc, z, orderedIndices, sws, nvFinal);
     alpaka::syncBlockThreads(acc);
-    if (once_per_block(acc)) {
-      // copy sorted vertices back to the SoA
-      for (int ivtx = threadIdx; ivtx < vertices[0].nV(); ivtx += blockSize) {
+    // copy sorted vertices back to the SoA. We restrict our usage to the first vertices[0].nV() entries of the SoA
+    for (int ivtx = threadIdx; ivtx < vertices[0].nV(); ivtx += blockSize) {
         vertices[ivtx].z() = z[ivtx];
         vertices[ivtx].rho() = rho[ivtx];
         vertices[ivtx].order() = orderedIndices[ivtx];
-      }
+	vertices[ivtx].isGood() = true;
+    }
+    // And invalidate the remaining part we won't use anymore
+    for (unsigned int ivtx = vertices[0].nV()+threadIdx; ivtx < maxVerticesInSoA; ivtx += blockSize) {
+        vertices[ivtx].isGood() = false;
     }
     alpaka::syncBlockThreads(acc);
-    printf("got to the end");
-    /*
     double zrange_min_ = 0.1;
+
+    #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
+        if (once_per_block(acc)) {
+            printf("[ClusterizerAlgoArbitrator::resortVerticesAndAssign()] Vertices are reordered, nV %i left\n", vertices[0].nV());
+        }
+    #endif
+
 
     for (int itrack = threadIdx; itrack < tracks.nT(); itrack += blockSize) {
       if (not(tracks[itrack].isGood()))
@@ -116,8 +137,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         tracks[itrack].kmax() = std::min(vertices[0].nV(), std::max(kmin, kmax) + 1);
       }
     }
-    alpaka::syncBlockThreads(acc);
+    #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
+        if (once_per_block(acc)) {
+            printf("[ClusterizerAlgoArbitrator::resortVerticesAndAssign()] Track-vertex range assignment finished \n");
+        }
+    #endif
 
+    alpaka::syncBlockThreads(acc);
     double mintrkweight_ = 0.5;
     double rho0 = vertices[0].nV() > 1 ? 1. / vertices[0].nV() : 1.;
     double z_sum_init = rho0 * exp(-(beta)*cParams.dzCutOff() * cParams.dzCutOff());
@@ -133,6 +159,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         sum_Z += vertices[vertices[k].order()].rho() * v_exp;
       }
       double invZ = sum_Z > 1e-100 ? 1. / sum_Z : 0.0;
+      // Univocally assign a track to the highest probability vertex
       for (auto k = kmin; k < kmax; k++) {
         float v_exp = exp(-(beta)*std::pow(tracks[itrack].z() - vertices[vertices[k].order()].z(), 2) *
                           tracks[itrack].oneoverdz2());
@@ -143,11 +170,17 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           iMax = k;
         }
       }
+      // Finally register that itrack is assigned to vertex iMax
       tracks[itrack].kmin() = iMax;
       tracks[itrack].kmax() = iMax + 1;
     }
+    #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
+        if (once_per_block(acc)) {
+            printf("[ClusterizerAlgoArbitrator::resortVerticesAndAssign()] Updated vertex masses\n");
+        }
+    #endif
+
     alpaka::syncBlockThreads(acc);
-    */
   }  //resortVerticesAndAssign
 
   template <bool debug = false, typename TAcc, typename = std::enable_if_t<alpaka::isAccelerator<TAcc>>>
@@ -155,17 +188,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                              portablevertex::TrackDeviceCollection::View tracks,
                                              portablevertex::VertexDeviceCollection::View vertices,
                                              const portablevertex::ClusterParamsHostCollection::ConstView cParams) {
-    //int blockSize = alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(acc)[0u];
-    //int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u]; // Thread number inside block
-    // From here it used to be vertices
-    if (once_per_block(acc)) {
-      for (int k = 0; k < vertices[0].nV(); k += 1) {  //TODO: ithread, blockSize
+    int blockSize = alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+    int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u]; // Thread number inside block
+    // First put the tracks in vertex SoA
+    for (int k = threadIdx; k < vertices[0].nV(); k += blockSize) { 
         int ivertex = vertices[k].order();
         vertices[ivertex].ntracks() = 0;
-	/*
         for (int itrack = 0; itrack < tracks.nT(); itrack += 1) {
           if (not(tracks[itrack].isGood()))
-            continue;  // Remove duplicates
+            continue;
           int ivtxFromTk = tracks[itrack].kmin();
           if (ivtxFromTk == k) {
             bool isNew = true;
@@ -181,17 +212,19 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           }
         }
         if (vertices[ivertex].ntracks() < 2) {
-          vertices[ivertex].isGood() = false;  // No longer needed
-          continue;                            //Skip vertex if it has no tracks
+	  // printf("Vertex %i (%i) is bad (low ntracks)\n", ivertex, k);
+          vertices[ivertex].isGood() = false;  // No longer needed if it is a single track vertex
+          continue;                            // Skip vertex if it has no tracks
         }
-	*/
         vertices[ivertex].x() = 0;
         vertices[ivertex].y() = 0;
-	vertices[ivertex].isGood() = true;
-      }
     }
     alpaka::syncBlockThreads(acc);
-    /*
+    #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
+        if (once_per_block(acc)) {
+            printf("[ClusterizerAlgoArbitrator::finalizeVertices()] Before cleanup %i vertices\n", vertices[0].nV());
+        }
+    #endif
     if (once_per_block(acc)) {
       // So we now check whether each vertex is further enough from the previous one
       for (int k = 0; k < vertices[0].nV(); k++) {
@@ -202,17 +235,44 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         }
         while (prevVertex >= 0) {
           // Find the previous vertex that was good
-          if (!vertices[vertices[prevVertex].order()].isGood())
+          if (vertices[vertices[prevVertex].order()].isGood())
             break;  //Can't be part of the while condition as otherwise it could try to look up with index -1 in the vervex view
           prevVertex--;
         }
         if ((prevVertex < 0)) {  // If it is first, always good
           vertices[thisVertex].isGood() = true;
-        } else if (abs(vertices[thisVertex].z() - vertices[prevVertex].z()) >
+	  #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
+              if (once_per_block(acc)) {
+                  printf("[ClusterizerAlgoArbitrator::finalizeVertices()] Vertex %i (%i) is good (first)\n", thisVertex, k);
+              }
+          #endif
+        } else if (abs(vertices[thisVertex].z() - vertices[vertices[prevVertex].order()].z()) >
                    (2 * cParams.vertexSize())) {  //If it is further away enough, it is also good
           vertices[thisVertex].isGood() = true;
+          #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
+              if (once_per_block(acc)) {
+                  printf("[ClusterizerAlgoArbitrator::finalizeVertices()] Vertex %i (%i) is good (far away from previous), %1.5f, %1.5f, %1.5f\n", thisVertex, k, vertices[thisVertex].z(), vertices[vertices[prevVertex].order()].z(), 2 * cParams.vertexSize());
+              }
+          #endif
         } else {
+          #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
+              if (once_per_block(acc)) {
+                  printf("[ClusterizerAlgoArbitrator::finalizeVertices()] Vertex %i (%i) is bad (close to previous), %1.5f, %1.5f\n", thisVertex, k, vertices[thisVertex].z(), vertices[vertices[prevVertex].order()].z());
+              }
+          #endif
           vertices[thisVertex].isGood() = false;
+	  int prevVertexO = vertices[prevVertex].order();
+          for (int itrack = 0; itrack < vertices[thisVertex].ntracks(); itrack += 1) {
+              bool isNew = true;
+              for (int ivtrack = 0; ivtrack < vertices[prevVertexO].ntracks(); ivtrack++) {
+                if ( vertices[prevVertexO].track_id()[ivtrack] == vertices[thisVertex].track_id()[itrack] )
+                  isNew = false;
+              }
+              if (!isNew) continue; 
+	      vertices[prevVertexO].track_id()[vertices[prevVertexO].ntracks()] = vertices[thisVertex].track_id()[itrack];
+	      vertices[prevVertexO].track_weight()[vertices[prevVertexO].ntracks()] = 1.;
+	      vertices[prevVertexO].ntracks()++;
+          }
         }
       }
       // We have to deal with the order being broken by the invalidation of vertexes and set back again the vertex multiplicity, unfortunately can't be parallelized without threads competing
@@ -229,8 +289,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         }
       }
     }
+    #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
+        if (once_per_block(acc)) {
+            printf("[ClusterizerAlgoArbitrator::finalizeVertices()] Vertices are reordered, nV %i left\n", vertices[0].nV());
+        }
+    #endif
+
     alpaka::syncBlockThreads(acc);
-    */
   }  //finalizeVertices
 
   class arbitrateKernel {
@@ -255,7 +320,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       alpaka::syncBlockThreads(acc);
-      ////finalizeVertices(acc, tracks, vertices, cParams);  // In CUDA it used to be verticesAndClusterize
+      finalizeVertices(acc, tracks, vertices, cParams);  // In CUDA it used to be verticesAndClusterize
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
       if (once_per_block(acc)) {
         printf("[ClusterizerAlgoArbitrator::operator()] Vertices finalized for block %i\n", blockIdx);
@@ -277,7 +342,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         make_workdiv<Acc1D>(blocks, blockSize),
         arbitrateKernel{},
         deviceTrack
-            .view(),  // TODO:: Maybe we can optimize the compiler by not making this const? Tracks would not be modified
+            .view(),
         deviceVertex.view(),
         cParams->view(),
         nBlocks);

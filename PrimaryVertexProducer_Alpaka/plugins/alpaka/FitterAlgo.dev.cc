@@ -63,7 +63,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #endif
       for (auto i : uniform_elements(
                acc,
-               nTrueVertex)) {  // By construction nTrueVertex <= 512, so this will always be a 1 thread to 1 vertex assignment
+               nTrueVertex)) {  // By construction nTrueVertex <= 1024, so this will always be a 1 thread to 2 vertex assignment tops
         if (not(vertices[i].isGood()))
           continue;  // If vertex was killed before, just skip
                      // Initialize positions and errors to 0
@@ -309,7 +309,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                        portablevertex::VertexDeviceCollection& deviceVertex,
                        const BeamSpotDevice& deviceBeamSpot) {
     const int nVertexToFit =
-        512;  // Right now it executes for all 512 vertex, even if vertex collection is empty (in which case the kernel passes). Can we make this dynamic to vertex size?
+        1024;  // Right now it executes for all 1024 vertex, even if vertex collection is empty (in which case the kernel passes)
     const int threadsPerBlock = 32;
     const int blocks = divide_up_by(nVertexToFit, threadsPerBlock);
     alpaka::exec<Acc1D>(queue,

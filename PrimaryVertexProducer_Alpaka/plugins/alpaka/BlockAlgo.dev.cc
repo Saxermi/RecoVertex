@@ -5,7 +5,7 @@
 
 #include "RecoVertex/PrimaryVertexProducer_Alpaka/plugins/alpaka/BlockAlgo.h"
 
-//#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_BLOCKALGO 0
+//#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_BLOCKALGO 1
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
   using namespace cms::alpakatools;
@@ -13,7 +13,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   class createBlocksKernel {
   public:
     template <typename TAcc, typename = std::enable_if_t<alpaka::isAccelerator<TAcc>>>
-
     ALPAKA_FN_ACC void operator()(const TAcc& acc,
                                   const portablevertex::TrackDeviceCollection::ConstView inputTracks,
                                   portablevertex::TrackDeviceCollection::View trackInBlocks,
@@ -78,16 +77,16 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }  // iNewTrack for
       if (once_per_block(acc)) {
         trackInBlocks.nT() =
-            (int32_t)((nBlocks - 1) * blockSize + nTOld -
-                      blockSize *
-                          std::floor(
+            (int32_t)(nBlocks * blockSize + nTOld -
+                      blockOverlap*blockSize*
+                          std::ceil(
                               nTOld /
                               (blockOverlap *
                                blockSize)));  // The new number of tracks has to account for the fact that we overlapped
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_BLOCKALGO
         printf(
             "[BlockAlgo::operator()] Set nTracks to %i\n",
-            (int32_t)((nBlocks - 1) * blockSize + nTOld - blockSize * std::floor(nTOld / (blockOverlap * blockSize))));
+            trackInBlocks.nT());
 #endif
       }
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_BLOCKALGO

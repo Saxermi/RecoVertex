@@ -9,26 +9,9 @@
 
 #include "RecoVertex/PrimaryVertexProducer_Alpaka/plugins/alpaka/ClusterizerAlgo.h"
 
-#ifndef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
-#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO 0
-#endif
-
-
-static constexpr bool DBG_SET_VTX_RANGE = true;
-
-#ifndef DBG_PRINT
-# define DBG_PRINT(acc, ...)                                                   \
-    do {                                                                      \
-      if (DBG_SET_VTX_RANGE && once_per_block(acc))                           \
-        printf(__VA_ARGS__);                                                  \
-    } while (false)
-#endif
-// fallback definition in case once_per_block(acc) is not available
-#ifndef once_per_block
-# define once_per_block(acc) (alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u] == 0)
-#endif
-
-
+//#ifndef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
+//#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO 0
+//#endif
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
   using namespace cms::alpakatools;
@@ -41,17 +24,23 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                  double& _beta,
                                  portablevertex::VertexDeviceCollection::View vertices) {
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
-    printf("[ClusterizerAlgo::dump()] Block Idx %i with nV %i at _beta %1.5f \n",
+    int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                             acc)[0u];  // Max vertices size is 1024 over number of blocks in the kernel
+    printf("[ClusterizerAlgo::dump()] Block Idx %i with nV %i at _beta %1.8f \n",
            blockIdx,
            vertices[blockIdx].nV(),
            _beta);
-    for (int ivertex = 0; ivertex < vertices[blockIdx].nV(); ivertex++) {
-      printf("[ClusterizerAlgo::dump()] -- Block Idx %i, vertex %i in order %i: z=%1.5f,Tc=%1.5f,pk=%1.5f\n",
+    for (int ivertexO = maxVerticesPerBlock * blockIdx;
+         ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
+         ivertexO += 1) {
+      int ivertex = vertices[ivertexO].order();
+      printf("[ClusterizerAlgo::dump()] -- Block Idx %i, vertex %i in order %i: z=%1.5f,swE=%1.5f,sw=%1.5f,pk=%1.5f\n",
              blockIdx,
              ivertex,
-             vertices[ivertex].order(),
+             ivertexO,
              vertices[ivertex].z(),
-             vertices[ivertex].swE() / vertices[ivertex].sw(),
+             vertices[ivertex].swE(),
+	     vertices[ivertex].sw(),
              vertices[ivertex].rho());
     }
   }
@@ -62,45 +51,25 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                           portablevertex::VertexDeviceCollection::View vertices,
                                           const portablevertex::ClusterParamsHostCollection::ConstView cParams,
                                           double& osumtkwt,
-                                          double& _beta, 
+                                          double& _beta,
                                           int trackBlockSize) {
     // These updates the range of vertices associated to each track through the kmin/kmax variables
     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
     int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
-    int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
-                                             acc)[0u];  // Max vertices size is 512 over number of blocks in grid
-      //debugging purpose
-    int blockBase  = maxVerticesPerBlock * blockIdx;   //ADD THIS
-
-
+    int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                             acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
     double zrange_min_ = 0.1;                           // Hard coded as in CPU version
     for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
          itrack += blockSize) {
-
       // Based on current temperature (regularization term) and track position uncertainty, only keep relevant vertices
       double zrange = std::max(cParams.zrange() / sqrt((_beta)*tracks[itrack].oneoverdz2()), zrange_min_);
       double zmin = tracks[itrack].z() - zrange;
-
       // First the lower bound
       int kmin = std::min(
           (int)(maxVerticesPerBlock * blockIdx) + vertices.nV(blockIdx) - 1,
           tracks[itrack]
               .kmin());  //We might have deleted a vertex, so be careful if the track is in one extreme of the axis
-
-     //int first = maxVerticesPerBlock * blockIdx;
-     // int last  = first + int(vertices[blockIdx].nV()) - 1;       // highest legal index
-                 // == blockBase
-    //int kmin = std::max(first, std::min(last, tracks[itrack].kmin()));
-
-      // debug before first dereference that can blow up
-    DBG_PRINT(acc,
-      "[DBG kmin-pre] block=%d track=%d idx=%d local=%d nV=%d\n",
-      blockIdx, itrack, kmin, kmin - blockBase, vertices.nV(blockIdx));
-
-
-
-
       if (vertices[vertices[kmin].order()].z() >
           zmin) {  // If the vertex position in z is bigger than the minimum, go down through all vertices position until finding one that is too far
         while ((kmin > maxVerticesPerBlock * blockIdx) &&
@@ -120,14 +89,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       int kmax = std::max(0,
                           std::min(maxVerticesPerBlock * blockIdx + (int)(vertices[blockIdx].nV()) - 1,
                                    (int)(tracks[itrack].kmax()) - 1));
-      //int kmax = std::max(first, std::min(last, tracks[itrack].kmax() - 1));
-
-
-
-    DBG_PRINT(acc,
-        "[DBG kmax-pre] block=%d track=%d idx=%d local=%d nV=%d\n",
-        blockIdx, itrack, kmax, kmax - blockBase, vertices.nV(blockIdx));
-
       if (vertices[vertices[kmax].order()].z() < zmax) {
         while (
             (kmax < (maxVerticesPerBlock * blockIdx + (int)(vertices[blockIdx].nV()) - 1)) &&
@@ -166,8 +127,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
     int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
-    int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
-                                             acc)[0u];  // Max vertices size is 512 over number of blocks in grid
+    int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                             acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
     double Zinit =
         rho0 *
         exp(-(_beta)*cParams.dzCutOff() *
@@ -216,10 +177,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     for (int ivertexO = maxVerticesPerBlock * blockIdx + threadIdx;
          ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
          ivertexO += blockSize) {
-      vertices[ivertexO].se() = 0.;
-      vertices[ivertexO].sw() = 0.;
-      vertices[ivertexO].swz() = 0.;
-      vertices[ivertexO].aux1() = 0.;
+      int ivertex = vertices[ivertexO].order();
+      vertices[ivertex].se() = 0.;
+      vertices[ivertex].sw() = 0.;
+      vertices[ivertex].swz() = 0.;
+      vertices[ivertex].aux1() = 0.;
       if (updateTc)
         vertices[ivertexO].swE() = 0.;
     }  // end vertex for
@@ -271,8 +233,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
     int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
-    int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
-                                             acc)[0u];  // Max vertices size is 512 over number of blocks in grid
+    int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                             acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
     int nprev = vertices[blockIdx].nV();
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
     if (once_per_block(acc)) {
@@ -402,8 +364,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
     int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
-    int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
-                                             acc)[0u];  // Max vertices size is 512 over number of blocks in grid
+    int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                             acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
     update(acc, tracks, vertices, cParams, osumtkwt, _beta, 0.0, true, trackBlockSize);  // Update positions after merge
     double epsilon = 1e-3;
     int nprev = vertices[blockIdx].nV();
@@ -577,7 +539,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         }
       }
       if (nnew == 999999)
-        break;  // Need to compute in all threads so all exist properly
+        break;  // Need to compute in all threads so all exit properly
       if (once_per_block(acc)) {
         double pk1 = p1 * vertices[ivertex].rho() / (p1 + p2);
         double pk2 = p2 * vertices[ivertex].rho() / (p1 + p2);
@@ -608,6 +570,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                  ivertex,
                  ivertex,
                  nnew);
+	  dump(acc, _beta, vertices);
         }
 #endif
       }
@@ -646,8 +609,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
     int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
-    int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
-                                             acc)[0u];  // Max vertices size is 512 over number of blocks in grid
+    int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                             acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
     if (vertices[blockIdx].nV() < 2)
       return;
     double eps = 1e-100;
@@ -749,8 +712,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
     int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
-    int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
-                                             acc)[0u];  // Max vertices size is 512 over number of blocks in grid
+    int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                             acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
     vertices[blockIdx].nV() = 1;                        // We start with one vertex per block
     for (int ivertex = threadIdx + maxVerticesPerBlock * blockIdx; ivertex < maxVerticesPerBlock * (blockIdx + 1);
          ivertex +=
@@ -797,8 +760,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
     int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
-    int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
-                                             acc)[0u];  // Max vertices size is 512 over number of blocks in grid
+    int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                             acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
+    printf("Aux %i\n", blockIdx);
     for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
          itrack += blockSize) {
       if (not(tracks[itrack].isGood()))
@@ -808,6 +772,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           tracks[itrack].weight() * tracks[itrack].oneoverdz2() * tracks[itrack].z();  // Weighted position
     }
     // Initial vertex position
+    printf("Init %i\n", blockIdx);
     alpaka::syncBlockThreads(acc);
     float& wnew = alpaka::declareSharedVar<float, __COUNTER__>(acc);
     float& znew = alpaka::declareSharedVar<float, __COUNTER__>(acc);
@@ -816,6 +781,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       znew = 0.;
     }
     alpaka::syncBlockThreads(acc);
+    printf("Atomics %i\n", blockIdx);
     for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
          itrack += blockSize) {
       if (not(tracks[itrack].isGood()))
@@ -828,6 +794,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       vertices[maxVerticesPerBlock * blockIdx].z() = znew / wnew;
       znew = 0.;
     }
+    printf("Per block %i\n", blockIdx);
     alpaka::syncBlockThreads(acc);
     // Now do a chi-2 like of all tracks and save it again in znew
     for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
@@ -839,17 +806,22 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           (vertices[maxVerticesPerBlock * blockIdx].z() - tracks[itrack].z()) * tracks[itrack].oneoverdz2();
       alpaka::atomicAdd(acc, &znew, tracks[itrack].aux2(), alpaka::hierarchy::Threads{});
     }
+    printf("Chi2 atomic %i\n", blockIdx);
     alpaka::syncBlockThreads(acc);
     if (once_per_block(acc)) {
+      printf("Set _beta %i\n", blockIdx);
       _beta = 2 * znew / wnew;       // 1/beta_C, or T_C
       if (_beta > cParams.TMin()) {  // If T_C > T_Min we have a game to play
         int coolingsteps =
             1 - int(std::log(_beta / cParams.TMin()) /
                     std::log(cParams.coolingFactor()));  // A tricky conversion to round the number of cooling steps
         _beta = std::pow(cParams.coolingFactor(), coolingsteps) / cParams.TMin();  // First cooling step
+	printf("beta set %i\n", blockIdx);
       } else
         _beta = cParams.coolingFactor() / cParams.TMin();  // Otherwise, just one step
+        printf("One step %i\n", blockIdx);
     }
+    printf("Beta0 set %i\n", blockIdx);
     alpaka::syncBlockThreads(acc);
   }
 
@@ -865,8 +837,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                        int trackBlockSize) {
     // At a fixed temperature, iterate vertex position update until stable
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];  // Block number inside grid
-    int maxVerticesPerBlock = (int)512 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
-                                             acc)[0u];  // Max vertices size is 512 over number of blocks in grid
+    int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                             acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
     // Thermalizing iteration
     int niter = 0;
     double zrange_min_ = 0.01;  // Hard coded as in CPU
@@ -920,9 +892,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         delta_sum_range = 0.;
       }
       if (dmax < delta_max) {  // If everything moved too little, we stop update
-#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
-        if (once_per_block(acc)) {
-          update(acc,
+	update(acc,
                  tracks,
                  vertices,
                  cParams,
@@ -931,6 +901,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                  0.0,
                  true,
                  trackBlockSize);  // Update also swE to get proper TCs
+
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
+        if (once_per_block(acc)) {
           printf(
               "[ClusterizerAlgo::thermalize()] BlockIdx %i, thermalize at _beta=%1.3f, iteration %i. Found "
               "delta_sum_range=%1.3f, dmax=%1.3f, all vertices stable enough to stop thermalizing\n",
@@ -961,7 +934,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     while (_beta < betafreeze) {                                                // The cooling loop
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
       if (once_per_block(acc)) {
-        printf("[ClusterizerAlgo::coolingWhileSplitting()] BlockIdx %i, current _beta=%1.3f\n", blockIdx, _beta);
+        printf("[ClusterizerAlgo::coolingWhileSplitting()] BlockIdx %i, current _beta=%1.8f\n", blockIdx, _beta);
       }
 #endif
       int nprev = vertices[blockIdx].nV();
@@ -1092,7 +1065,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
     alpaka::syncBlockThreads(acc);
     // And now purge
-   // /*
     nprev = vertices[blockIdx].nV();
     purge(acc, tracks, vertices, cParams, osumtkwt, _beta, rho0, trackBlockSize);
     while (nprev != vertices[blockIdx].nV()) {
@@ -1101,9 +1073,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       purge(acc, tracks, vertices, cParams, osumtkwt, _beta, rho0, trackBlockSize);
       alpaka::syncBlockThreads(acc);
     }
-    //  */
-
-
     while (_beta < 1. / cParams.Tstop()) {  // Cool down to stop temperature
       alpaka::syncBlockThreads(acc);
       if (once_per_block(acc)) {  // Cool down

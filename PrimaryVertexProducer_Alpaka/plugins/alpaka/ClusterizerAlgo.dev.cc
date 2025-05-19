@@ -21,7 +21,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       // tracks contains input track parameters and includes the track-vertex assignment modified during this kernel
       // vertices is filled up by this kernel with protocluster properties
       // beta_ and osumtkwt_ are used to pass the final values of _beta and _osumtkwt on each block to the next kernel
-      int blockSize = alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+      int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(
           acc)[0u];  // In GPU blockSize and trackBlockSize should be identical from how the kernel is called, in CPU not
       int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
       int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
@@ -35,8 +35,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           alpaka::declareSharedVar<double, __COUNTER__>(acc);  // 1/T in the annealing loop, shared in the block
       double& _osumtkwt = alpaka::declareSharedVar<double, __COUNTER__>(
           acc);  // Sum of all track weights for normalization of probabilities, shared in the block
+      alpaka::syncBlockThreads(acc);
+      if (once_per_block(acc)) {
+	  _osumtkwt = 0;
+      }
+      alpaka::syncBlockThreads(acc);
       for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
            itrack += blockSize) {
+	if (not (tracks[itrack].isGood())) continue;
         double temp_weight = static_cast<double>(tracks[itrack].weight());
         alpaka::atomicAdd(acc, &_osumtkwt, temp_weight, alpaka::hierarchy::Threads{});
       }
@@ -63,7 +69,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       alpaka::syncBlockThreads(acc);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
       if (once_per_block(acc)) {
-        printf("[ClusterizerAlgo::operator()] BlockIdx %i, first estimation of TC _beta=%1.3f \n", blockIdx, _beta);
+        printf("[ClusterizerAlgo::operator()] BlockIdx %i, first estimation of TC _beta=%1.8f \n", blockIdx, _beta);
       }
 #endif
       // Cool down to betamax with rho = 0.0 (no regularization term)
@@ -77,7 +83,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       coolingWhileSplitting(acc, tracks, vertices, cParams, _osumtkwt, _beta, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
       if (once_per_block(acc)) {
-        printf("[ClusterizerAlgo::operator()] BlockIdx %i, cooling ended, T at stop _beta=%1.3f\n", blockIdx, _beta);
+        printf("[ClusterizerAlgo::operator()] BlockIdx %i, cooling ended, T at stop _beta=%1.8f\n", blockIdx, _beta);
       }
 #endif
       // After cooling, merge closeby vertices
@@ -112,13 +118,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                    const std::shared_ptr<portablevertex::ClusterParamsHostCollection> cParams,
                                    int32_t nBlocks,
                                    int32_t blockSize) {
-    const int blocks = divide_up_by(nBlocks * blockSize, blockSize);  //nBlocks of size blockSize
+    //const int blocks = divide_up_by(nBlocks * blockSize, blockSize);  //nBlocks of size blockSize
     alpaka::exec<Acc1D>(
         queue,
-        make_workdiv<Acc1D>(blocks, blockSize),
+        make_workdiv<Acc1D>(nBlocks, 64),
         clusterizeKernel{},
         deviceTrack
-            .view(),  // TODO:: Maybe we can optimize the compiler by not making this const? Tracks would not be modified
+            .view(), 
         deviceVertex.view(),
         cParams->view(),
         beta_.data(),
