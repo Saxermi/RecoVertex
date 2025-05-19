@@ -1841,6 +1841,7 @@ std::vector<TransientVertex> DAClusterizerInZ_vect::Global_DA_after_DAB(const Ve
 
 
 
+  
 vector<reco::TransientTrack> sorted_tracks; // initalizes empty vectors and coppies all tracks into it
 vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
 // using this vector we collect all vertices protoypes form
@@ -2153,6 +2154,51 @@ vector<vector<reco::TransientTrack>> DAClusterizerInZ_vect::clusterize(  // OBSO
 
   return clusters;
 }
+// hybrid
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void DAClusterizerInZ_vect::dump(
     const double beta, const vertex_t& y, const track_t& tks, const int verbosity, const double rho0) const {
