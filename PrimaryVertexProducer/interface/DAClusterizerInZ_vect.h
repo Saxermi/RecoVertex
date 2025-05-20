@@ -199,6 +199,7 @@ public:
   bool merge(vertex_t &y, track_t &tks, double &beta) const;
   bool purge(vertex_t &, track_t &, double &, const double) const;
   bool split(const double beta, track_t &t, vertex_t &y, double threshold = 1.) const;
+  bool fpurge(vertex_t& y, track_t& tks, double& rho0, const double beta) const;
 
   double beta0(const double betamax, track_t const &tks, vertex_t const &y) const;
   void verify(const vertex_t &v, const track_t &tks, unsigned int nv = 999999, unsigned int nt = 999999) const;

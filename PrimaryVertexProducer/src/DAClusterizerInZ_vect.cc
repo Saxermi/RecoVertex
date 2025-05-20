@@ -1061,7 +1061,7 @@ auto start_overall_timing = std::chrono::high_resolution_clock::now();
 #endif
 
   // eliminate insignificant vertices, this is more restrictive at higher T
-  while (purge(y, tks, rho0, beta)) {
+  while (fpurge(y, tks, rho0, beta)) {
     thermalize(beta, tks, y, delta_lowT_, rho0);
   }
 
@@ -1264,7 +1264,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
       // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-      double firstbestastop = 0.5;
+      double firstbestastop = 0.05;
       int iterations = 0;
 
 
