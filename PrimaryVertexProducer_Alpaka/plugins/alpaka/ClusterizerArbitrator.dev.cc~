@@ -225,14 +225,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             printf("[ClusterizerAlgoArbitrator::finalizeVertices()] Before cleanup %i vertices\n", vertices[0].nV());
         }
     #endif
-	/*
     if (once_per_block(acc)) {
       // So we now check whether each vertex is further enough from the previous one
       for (int k = 0; k < vertices[0].nV(); k++) {
         int prevVertex = ((int)k) - 1;
         int thisVertex = (int)vertices[k].order();
         if (not(vertices[thisVertex].isGood())) {
-	  printf("vertex skipped %i) %i \n",k, thisVertex); //WE
           continue;
         }
         while (prevVertex >= 0) {
@@ -291,7 +289,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         }
       }
     }
-    */
     #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
         if (once_per_block(acc)) {
             printf("[ClusterizerAlgoArbitrator::finalizeVertices()] Vertices are reordered, nV %i left\n", vertices[0].nV());
@@ -310,8 +307,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                   const portablevertex::ClusterParamsHostCollection::ConstView cParams,
                                   int32_t nBlocks) const {
       // This has the core of the clusterization algorithm
-#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
       int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];  // Block number inside grid
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_ARBITRATOR
       if (once_per_block(acc)) {
         printf("[ClusterizerAlgoArbitrator::operator()] Start arbitration for block %i\n", blockIdx);
       }

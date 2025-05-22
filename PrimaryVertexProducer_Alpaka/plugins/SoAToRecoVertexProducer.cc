@@ -264,6 +264,7 @@ void SoAToRecoVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup&
   const portablevertex::VertexHostCollection& hostVertex = iEvent.get(portableVertexToken_);
   const portablevertex::VertexHostCollection::ConstView& hostVertexView = hostVertex.const_view();
   std::cout << "im in soatorecovertec"<<std::endl;
+  std::cout << "hostVertexView[0].nV() "<< hostVertexView[0].nV() << std::endl;
 
   // get the BeamSpot, it will always be needed, even when not used as a constraint
   reco::BeamSpot beamSpot;
@@ -315,10 +316,9 @@ void SoAToRecoVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup&
 for(int iV = 0; iV < hostVertexView[0].nV(); iV++) {
     int ivv = hostVertexView[iV].order();
     std::cout << "== " << iV << " " << ivv << " of " << hostVertexView[0].nV() << std::endl;
-    if (!hostVertexView[ivv].isGood())
-        continue;
-        std::cout << "iVertex " << ivv << ": z=" << hostVertexView[ivv].z()
-        << ", rho=" << hostVertexView[ivv].rho() << std::endl;
+    //if (!hostVertexView[ivv].isGood()) continue;
+    std::cout << "iVertex " << ivv << ": z=" << hostVertexView[ivv].z()
+	      << ", rho=" << hostVertexView[ivv].rho() << std::endl;
     prototypes.Vtx_proto_z_vec.push_back(hostVertexView[ivv].z());
     prototypes.Vtx_proto_rho_vec.push_back(hostVertexView[ivv].rho());
 }

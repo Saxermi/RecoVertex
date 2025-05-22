@@ -105,8 +105,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       alpaka::wait(iEvent.queue());
       //// And then fit
       // Put the vertices in the event as a portable collection
-      printf("deviceVertex size =  %i\n", deviceVertex.view().metadata().size());
-      printf("deviceVertex nV =  %i\n", deviceVertex.view()[0].nV());
       iEvent.emplace(devicePutToken_, std::move(deviceVertex));
     }
 
