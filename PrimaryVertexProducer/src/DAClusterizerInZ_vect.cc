@@ -1838,6 +1838,7 @@ std::vector<TransientVertex> DAClusterizerInZ_vect::Global_DA_after_DAB(const Ve
 
 
 
+  std::cout << "inside global DA after DAB "  << std::endl;
 
 
 
@@ -1850,8 +1851,8 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
  for (unsigned int i = 0; i < VertexCandiates.getSize(); ++i)
     {
       combined_vertex_prototypes.addItem(VertexCandiates.Vtx_proto_z_vec[i], VertexCandiates.Vtx_proto_rho_vec[i]);
-     // std::cout << "clusternumber::::::" << "z pos::::::" << "roh" << std::endl;
-      //std::cout << i <<"::::::"<< VertexCandiates.zvtx_vec[i]  <<"::::::"<<VertexCandiates.rho_vec[i] << std::endl;
+     std::cout << "clusternumber::::::" << "z pos::::::" << "roh" << std::endl;
+      std::cout << i <<"::::::"<< VertexCandiates.Vtx_proto_z_vec[i]  <<"::::::"<<VertexCandiates.Vtx_proto_rho_vec[i] << std::endl;
     }
 
 

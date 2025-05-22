@@ -41,6 +41,7 @@
 
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
+#include <cmath>  // for std::isnan
 
 #include "RecoVertex/VertexTools/interface/GeometricAnnealing.h"
 
@@ -313,21 +314,68 @@ void SoAToRecoVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup&
 
 
 
-for(int iV = 0; iV < hostVertexView[0].nV(); iV++) {
+  for (int iV = 0; iV < hostVertexView[0].nV(); iV++) {
     int ivv = hostVertexView[iV].order();
+
+    double z_val = hostVertexView[ivv].z();
+    double rho_val = hostVertexView[ivv].rho();
+
+    // Always print values, even if they are NaN
     std::cout << "== " << iV << " " << ivv << " of " << hostVertexView[0].nV() << std::endl;
-    //if (!hostVertexView[ivv].isGood()) continue;
-    std::cout << "iVertex " << ivv << ": z=" << hostVertexView[ivv].z()
-	      << ", rho=" << hostVertexView[ivv].rho() << std::endl;
-    prototypes.Vtx_proto_z_vec.push_back(hostVertexView[ivv].z());
-    prototypes.Vtx_proto_rho_vec.push_back(hostVertexView[ivv].rho());
+    std::cout << "iVertex " << ivv << ": z=" << z_val << ", rho=" << rho_val << std::endl;
+
+    // Only push values into the prototype if neither z nor rho is NaN
+    if (!std::isnan(z_val) && !std::isnan(rho_val)) {
+        prototypes.Vtx_proto_z_vec.push_back(z_val);
+        prototypes.Vtx_proto_rho_vec.push_back(rho_val);
+    }
+}
+
+for (size_t i = 0; i < prototypes.Vtx_proto_z_vec.size(); ++i) {
+  std::cout << "Prototype " << i << ": z=" << prototypes.Vtx_proto_z_vec[i]
+            << ", rho=" << prototypes.Vtx_proto_rho_vec[i] << std::endl;
+}
+// Zuerst alle mit isGood() == true
+std::cout << "Vertices with isGood() == true:" << std::endl;
+for (int iV = 0; iV < hostVertexView[0].nV(); ++iV) {
+    int ivv = hostVertexView[iV].order();
+    if (hostVertexView[ivv].isGood()) {
+        std::cout << "iVertex " << ivv << ": z=" << hostVertexView[ivv].z()
+                  << ", rho=" << hostVertexView[ivv].rho() << std::endl;
+    }
+}
+
+// Danach alle mit isGood() == false
+std::cout << "Vertices with isGood() == false:" << std::endl;
+for (int iV = 0; iV < hostVertexView[0].nV(); ++iV) {
+    int ivv = hostVertexView[iV].order();
+    if (!hostVertexView[ivv].isGood()) {
+        std::cout << "iVertex " << ivv << ": z=" << hostVertexView[ivv].z()
+                  << ", rho=" << hostVertexView[ivv].rho() << std::endl;
+    }
 }
 
 
+double rhoSum = 0.0;
+for (size_t i = 0; i < prototypes.Vtx_proto_rho_vec.size(); ++i) {
+    double val = prototypes.Vtx_proto_rho_vec[i];
+    if (!std::isnan(val)) {
+        rhoSum += val;
+    }
+}
 
+std::cout << "Sum of all non-NaN rho values: " << rhoSum << std::endl;
+prototypes.normalizeRho();
+prototypes.sortByZ();
 
-
-  // carlos:
+rhoSum = 0.0;
+for (size_t i = 0; i < prototypes.Vtx_proto_rho_vec.size(); ++i) {
+    double val = prototypes.Vtx_proto_rho_vec[i];
+    if (!std::isnan(val)) {
+        rhoSum += val;
+    }
+}
+  // carlos: sortByZ
 //for (int iV = 0; iV < vertexView[0].nV() ; iV++){
  //   printf("Vertex %i: x=%1.5f, y=%1.5f, z=%1.5f, rho=%1.5f\n",vertexView[iV].x(), vertexView[iV].y(), vertexView[iV].z(), vertexView[iV].rho());
 //}
@@ -349,9 +397,26 @@ auto block_boundaries = theTrackClusterizer->get_block_boundaries(seltks);
   auto* daClusterizer = dynamic_cast<DAClusterizerInZ_vect*>(theTrackClusterizer);
   //if (!daClusterizer) {
   //    throw cms::Exception("LogicError") << "theTrackClusterizer is not a DAClusterizerInZ_vect!";
-  //}
+  
+  std::cout << "made it to the global da after DAB "  << std::endl;
 
   std::vector<TransientVertex> clusters = daClusterizer->Global_DA_after_DAB(prototypes, seltks);
+  std::cout << "made it trough the global da after DAB "  << std::endl;
+
+
+  for (size_t i = 0; i < clusters.size(); ++i) {
+    const auto& vertex = clusters[i];
+    if (vertex.isValid()) {
+        auto pos = vertex.position();
+        std::cout << "Cluster " << i << ": "
+                  << "x = " << pos.x() << ", "
+                  << "y = " << pos.y() << ", "
+                  << "z = " << pos.z() << ", ";
+    } else {
+      std::cout << "Cluster " << i << ": invalid vertex" << std::endl;
+    }
+}
+
   
 #ifdef cputime
   auto stop_clustering = std::chrono::high_resolution_clock::now();

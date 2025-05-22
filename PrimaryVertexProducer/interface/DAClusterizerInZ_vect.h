@@ -14,6 +14,9 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include <vector>
+#include <algorithm> // used for sorting the prototypes
+#include <cmath>  // for std::isnan
+
 #include "DataFormats/Math/interface/Error.h"
 #include "RecoVertex/VertexTools/interface/VertexDistanceXY.h"
 #include "RecoVertex/VertexPrimitives/interface/TransientVertex.h"
@@ -170,13 +173,79 @@ public:
     }
   };
   // data structure used to get the vertex prototypes from the gpus
-struct VertexProtoType
-{
-  std::vector<double> Vtx_proto_z_vec;
-  std::vector<double> Vtx_proto_rho_vec;
-  unsigned int getSize() const { return Vtx_proto_z_vec.size(); }
-
-};
+  struct VertexProtoType
+  {
+      std::vector<double> Vtx_proto_z_vec;
+      std::vector<double> Vtx_proto_rho_vec;
+  
+      unsigned int getSize() const { return Vtx_proto_z_vec.size(); }
+  
+      void sortByZ()
+      {
+          // Indizes erzeugen nur für gültige (nicht NaN) Werte
+          std::vector<size_t> indices;
+          indices.reserve(getSize());
+  
+          for (size_t i = 0; i < getSize(); ++i)
+          {
+              if (!std::isnan(Vtx_proto_z_vec[i]))
+                  indices.push_back(i);
+          }
+  
+          // Nach z sortieren, nur gültige Werte
+          std::sort(indices.begin(), indices.end(),
+                    [this](size_t a, size_t b) {
+                        return Vtx_proto_z_vec[a] < Vtx_proto_z_vec[b];
+                    });
+  
+          // Vektoren für sortierte gültige Werte
+          std::vector<double> sorted_z;
+          std::vector<double> sorted_rho;
+          sorted_z.reserve(indices.size());
+          sorted_rho.reserve(indices.size());
+  
+          for (auto idx : indices)
+          {
+              sorted_z.push_back(Vtx_proto_z_vec[idx]);
+              sorted_rho.push_back(Vtx_proto_rho_vec[idx]);
+          }
+  
+          // Optional: Wie mit NaNs umgehen?
+          // Hier: NaNs werden am Ende angehängt (unverändert)
+          for (size_t i = 0; i < getSize(); ++i)
+          {
+              if (std::isnan(Vtx_proto_z_vec[i]))
+              {
+                  sorted_z.push_back(Vtx_proto_z_vec[i]);
+                  sorted_rho.push_back(Vtx_proto_rho_vec[i]);
+              }
+          }
+  
+          Vtx_proto_z_vec = std::move(sorted_z);
+          Vtx_proto_rho_vec = std::move(sorted_rho);
+      }
+  
+      void normalizeRho()
+      {
+          double sum = 0.0;
+          // Summe nur von gültigen (nicht NaN) Werten
+          for (double val : Vtx_proto_rho_vec)
+          {
+              if (!std::isnan(val))
+                  sum += val;
+          }
+  
+          if (sum == 0.0)
+              return; // Division durch Null vermeiden
+  
+          for (double &val : Vtx_proto_rho_vec)
+          {
+              if (!std::isnan(val))
+                  val /= sum;
+              // NaN bleibt unverändert
+          }
+      }
+  };
   DAClusterizerInZ_vect(const edm::ParameterSet &conf);
 
   std::vector<std::vector<reco::TransientTrack> > clusterize(
