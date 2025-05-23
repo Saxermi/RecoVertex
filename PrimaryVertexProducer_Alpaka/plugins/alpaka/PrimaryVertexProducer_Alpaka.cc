@@ -72,6 +72,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       cpview.delta_highT() = clusterParams.delta_highT;
     }
 
+    
     void produce(device::Event& iEvent, device::EventSetup const& iSetup) {
       printf("Start produce\n");
       const portablevertex::TrackDeviceCollection& inputtracks = iEvent.get(trackToken_);
@@ -92,6 +93,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       //// First create the individual blocks
       BlockAlgo blockKernel_{};
       blockKernel_.createBlocks(iEvent.queue(), inputtracks, tracksInBlocks, blockSize, blockOverlap);
+      std::cout<<"Infos from primaryvertexproducer" << "Blocksize" << blockSize<< "overlap" << blockOverlap<< std::endl;
+
+
+
+
       // Need to have the blocks created before launching the next step
       alpaka::wait(iEvent.queue());
       //// Then run the clusterizer per blocks

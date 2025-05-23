@@ -409,9 +409,7 @@ auto block_boundaries = theTrackClusterizer->get_block_boundaries(seltks);
     if (vertex.isValid()) {
         auto pos = vertex.position();
         std::cout << "Cluster " << i << ": "
-                  << "x = " << pos.x() << ", "
-                  << "y = " << pos.y() << ", "
-                  << "z = " << pos.z() << ", ";
+                  << "z = " << pos.z() << ", "<<std::endl;
     } else {
       std::cout << "Cluster " << i << ": invalid vertex" << std::endl;
     }

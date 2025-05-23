@@ -1859,7 +1859,6 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
 
 
 
-  double betasave = 0.0;
   // sorting tracks
   for (unsigned int i = 0; i < tracks.size(); i++)
   {
@@ -1885,16 +1884,13 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
 
 
   double rho0, beta; // get blocborders
-  
 // correct roh values
 float rohsums = 0;
-
-for (unsigned int  i = 0; i < combined_vertex_prototypes.getSize(); ++i)
-{
+ rho0 = 0.0;  // start with no outlier rejection
+beta = 0.333; // for T =3 and beta *0.9
+for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
   rohsums += combined_vertex_prototypes.rho_vec[i];
 }
-
-
 
 for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i)
 {
