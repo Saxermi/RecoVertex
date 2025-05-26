@@ -520,6 +520,8 @@ for(auto & z : block_boundaries){
  
   
 #ifdef cputime
+  std::cout << " producing clusteringCPUtime" << std::endl;
+
   auto clusteringCPUtime = std::make_unique<float>(tcpu_clustering.count() * 1.e-3);
   iEvent.put(std::move(clusteringCPUtime), "clusteringCPUtime");
 #endif
