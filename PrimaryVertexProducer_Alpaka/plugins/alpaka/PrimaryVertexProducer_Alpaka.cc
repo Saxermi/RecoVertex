@@ -1,5 +1,6 @@
 #include "DataFormats/PortableVertex/interface/alpaka/VertexDeviceCollection.h"
 #include "DataFormats/PortableVertex/interface/VertexHostCollection.h"
+#include "DataFormats/BeamSpot/interface/BeamSpotHost.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
@@ -13,6 +14,7 @@
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
 
+#include "DataFormats/BeamSpot/interface/BeamSpot.h"
 #include "DataFormats/Math/interface/AlgebraicROOTObjects.h"
 
 #include "BlockAlgo.h"
@@ -29,12 +31,22 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
    */
   class PrimaryVertexProducer_Alpaka : public stream::EDProducer<> {
   public:
-    PrimaryVertexProducer_Alpaka(edm::ParameterSet const& config) : stream::EDProducer<>(config) {
+    PrimaryVertexProducer_Alpaka(edm::ParameterSet const& config):EDProducer(config) {
       trackToken_ = consumes(config.getParameter<edm::InputTag>("TrackLabel"));
+      beamSpotToken_ = consumes(config.getParameter<edm::InputTag>("BeamSpotLabel"));
       devicePutToken_ = produces();
-      extraInfoToken_ = produces("extraInfo");
       blockSize = config.getParameter<int32_t>("blockSize");
       blockOverlap = config.getParameter<double>("blockOverlap");
+      fitterParams = {
+          .chi2cutoff = config.getParameter<edm::ParameterSet>("TkFitterParameters")
+                            .getParameter<double>("chi2cutoff"),  // not used?
+          .minNdof =
+              config.getParameter<edm::ParameterSet>("TkFitterParameters").getParameter<double>("minNdof"),  // not used?
+          .useBeamSpotConstraint =
+              config.getParameter<edm::ParameterSet>("TkFitterParameters").getParameter<bool>("useBeamSpotConstraint"),
+          .maxDistanceToBeam = config.getParameter<edm::ParameterSet>("TkFitterParameters")
+                                   .getParameter<double>("maxDistanceToBeam")  //not used?
+      };
       clusterParams = {
           .Tmin = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("Tmin"),
           .Tpurge = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("Tpurge"),
@@ -74,20 +86,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 
     void produce(device::Event& iEvent, device::EventSetup const& iSetup) {
-      printf("Start produce\n");
       const portablevertex::TrackDeviceCollection& inputtracks = iEvent.get(trackToken_);
-      printf("Get tracks\n");
+      ////const BeamSpotDevice& beamSpot = iEvent.get(beamSpotToken_);
       int32_t nT = inputtracks.view().metadata().size();
-      printf("Compute block number\n");
-      int32_t nBlocks = nT > blockSize ? nT/blockSize : 1;
-	      //((nT - 1) / (blockOverlap * blockSize)) 
-              //                         : 1;  // If the block size is big enough we process everything at once
+      int32_t nBlocks = nT > blockSize ? int32_t((nT - 1) / (blockOverlap * blockSize))
+                                       : 1;  // If the block size is big enough we process everything at once
       // Now the device collections we still need
-      printf("Reserve block memory \n");
       portablevertex::TrackDeviceCollection tracksInBlocks{nBlocks * blockSize, iEvent.queue()};  // As high as needed
-      printf("nBlocks %i, nT %i\n", nBlocks, nBlocks * blockSize);
       portablevertex::VertexDeviceCollection deviceVertex{
-          1024, iEvent.queue()};  // Hard capped to 1024, though we might want to restrict it for low PU cases
+          512, iEvent.queue()};  // Hard capped to 512, though we might want to restrict it for low PU cases
 
       // run the algorithm
       //// First create the individual blocks
@@ -95,55 +102,46 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       blockKernel_.createBlocks(iEvent.queue(), inputtracks, tracksInBlocks, blockSize, blockOverlap);
       // Need to have the blocks created before launching the next step
       alpaka::wait(iEvent.queue());
-      
-      // collect the block boundary information 
-      auto tx = tracksInBlocks.view();
-      auto block_boundaries = std::make_unique<std::vector<float>>();
-      int num_tk = 0;
-      for(int block = 0; block < nBlocks; block++){
-	auto zstart = tx[block * blockSize].z();
-	auto zend = tx[block * blockSize].z();
-	int num_tk_block = 0;
-	for(int track_in_block = 0; track_in_block < blockSize; track_in_block++){
-	  int i = block * blockSize + track_in_block;
-	  if (tx[i].isGood()){
-	    num_tk_block++;
-	    if((tx[i].z()) < zstart) zstart = tx[i].z();
-	    if((tx[i].z()) > zend) zend = tx[i].z();
-	  }
-	}
-	//std::cout << " block " << block << "(" << nBlocks << ")"  << "  start = " << zstart   << "  end = " << zend <<  " num_tk=" << num_tk_block << std::endl;
-	num_tk += num_tk_block;
-	if ((zstart < zend) && (num_tk > 0)){
-	  block_boundaries->push_back(zstart);
-	  block_boundaries->push_back(zend);
-	}
+      /////
+      for(unsigned int i = 0; i < nT; i++){
+	std::cout << "block " << i << trackInBlocks[newIndex].z() << " " << trackInBlocks[newIndex].isGood() << std::endl;
       }
-      //std::cout << "total: number of blocks = " << block_boundaries->size() / 2 <<  " number of tracks = " << num_tk << std::endl;
-    
       //// Then run the clusterizer per blocks
       ClusterizerAlgo clusterizerKernel_{iEvent.queue(), blockSize};
       clusterizerKernel_.clusterize(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
-      // clusterizerKernel_.resplit_tracks(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
-      // clusterizerKernel_.reject_outliers(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
+      ////clusterizerKernel_.resplit_tracks(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
+      ////clusterizerKernel_.reject_outliers(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       // Need to have all vertex before arbitrating and deciding what we keep
       alpaka::wait(iEvent.queue());
+      // arbitrate also causes an index out of error errror
       clusterizerKernel_.arbitrate(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
       alpaka::wait(iEvent.queue());
       //// And then fit
-      // Put the vertices in the event as a portable collection
-      printf("deviceVertex size =  %i\n", deviceVertex.view().metadata().size());
-      printf("deviceVertex nV =  %i\n", deviceVertex.view()[0].nV());
+      ////FitterAlgo fitterKernel_{iEvent.queue(), deviceVertex.view().metadata().size(), fitterParams};
+      ////fitterKernel_.fit(iEvent.queue(), tracksInBlocks, deviceVertex, beamSpot);
+      std::cout << "PrimaryVertexProducer_Alpaka:  size="  << deviceVertex.view().metadata().size() << std::endl;
+      //for(auto v:deviceVertex){
+      //  if (v.isGood()){
+      //	  std::cout << v.z() << " " << v.rho() << std::endl;
+      //	}        
+      //  }
+
+	// Put the vertices in the event as a portable collection
       iEvent.emplace(devicePutToken_, std::move(deviceVertex));
-      iEvent.put(extraInfoToken_, std::move(block_boundaries));
-     
     }
 
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
       edm::ParameterSetDescription desc;
       desc.add<edm::InputTag>("TrackLabel");
+      desc.add<edm::InputTag>("BeamSpotLabel");
       desc.add<double>("blockOverlap");
       desc.add<int32_t>("blockSize");
+      edm::ParameterSetDescription parf0;
+      parf0.add<double>("chi2cutoff", 2.5);
+      parf0.add<double>("minNdof", 0.0);
+      parf0.add<bool>("useBeamSpotConstraint", true);
+      parf0.add<double>("maxDistanceToBeam", 1.0);
+      desc.add<edm::ParameterSetDescription>("TkFitterParameters", parf0);
       edm::ParameterSetDescription parc0;
       parc0.add<double>("d0CutOff", 3.0);
       parc0.add<double>("Tmin", 2.0);
@@ -165,8 +163,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   private:
     device::EDGetToken<portablevertex::TrackDeviceCollection> trackToken_;
+    device::EDGetToken<BeamSpotDevice> beamSpotToken_;
     device::EDPutToken<portablevertex::VertexDeviceCollection> devicePutToken_;
-    device::EDPutToken<std::vector<float>> extraInfoToken_;
     int32_t blockSize;
     double blockOverlap;
     fitterParameters fitterParams;
