@@ -32,6 +32,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     PrimaryVertexProducer_Alpaka(edm::ParameterSet const& config) : stream::EDProducer<>(config) {
       trackToken_ = consumes(config.getParameter<edm::InputTag>("TrackLabel"));
       devicePutToken_ = produces();
+      extraInfoToken_ = produces("extraInfo");
       blockSize = config.getParameter<int32_t>("blockSize");
       blockOverlap = config.getParameter<double>("blockOverlap");
       clusterParams = {
@@ -72,7 +73,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       cpview.delta_highT() = clusterParams.delta_highT;
     }
 
-    
     void produce(device::Event& iEvent, device::EventSetup const& iSetup) {
       printf("Start produce\n");
       const portablevertex::TrackDeviceCollection& inputtracks = iEvent.get(trackToken_);
@@ -93,13 +93,34 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       //// First create the individual blocks
       BlockAlgo blockKernel_{};
       blockKernel_.createBlocks(iEvent.queue(), inputtracks, tracksInBlocks, blockSize, blockOverlap);
-      std::cout<<"Infos from primaryvertexproducer" << "Blocksize" << blockSize<< "overlap" << blockOverlap<< std::endl;
-
-
-
-
       // Need to have the blocks created before launching the next step
       alpaka::wait(iEvent.queue());
+      
+      // collect the block boundary information 
+      auto tx = tracksInBlocks.view();
+      auto block_boundaries = std::make_unique<std::vector<float>>();
+      int num_tk = 0;
+      for(int block = 0; block < nBlocks; block++){
+	auto zstart = tx[block * blockSize].z();
+	auto zend = tx[block * blockSize].z();
+	int num_tk_block = 0;
+	for(int track_in_block = 0; track_in_block < blockSize; track_in_block++){
+	  int i = block * blockSize + track_in_block;
+	  if (tx[i].isGood()){
+	    num_tk_block++;
+	    if((tx[i].z()) < zstart) zstart = tx[i].z();
+	    if((tx[i].z()) > zend) zend = tx[i].z();
+	  }
+	}
+	//std::cout << " block " << block << "(" << nBlocks << ")"  << "  start = " << zstart   << "  end = " << zend <<  " num_tk=" << num_tk_block << std::endl;
+	num_tk += num_tk_block;
+	if ((zstart < zend) && (num_tk > 0)){
+	  block_boundaries->push_back(zstart);
+	  block_boundaries->push_back(zend);
+	}
+      }
+      //std::cout << "total: number of blocks = " << block_boundaries->size() / 2 <<  " number of tracks = " << num_tk << std::endl;
+    
       //// Then run the clusterizer per blocks
       ClusterizerAlgo clusterizerKernel_{iEvent.queue(), blockSize};
       clusterizerKernel_.clusterize(iEvent.queue(), tracksInBlocks, deviceVertex, cParams, nBlocks, blockSize);
@@ -114,6 +135,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       printf("deviceVertex size =  %i\n", deviceVertex.view().metadata().size());
       printf("deviceVertex nV =  %i\n", deviceVertex.view()[0].nV());
       iEvent.emplace(devicePutToken_, std::move(deviceVertex));
+      iEvent.put(extraInfoToken_, std::move(block_boundaries));
+     
     }
 
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -143,6 +166,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   private:
     device::EDGetToken<portablevertex::TrackDeviceCollection> trackToken_;
     device::EDPutToken<portablevertex::VertexDeviceCollection> devicePutToken_;
+    device::EDPutToken<std::vector<float>> extraInfoToken_;
     int32_t blockSize;
     double blockOverlap;
     fitterParameters fitterParams;
