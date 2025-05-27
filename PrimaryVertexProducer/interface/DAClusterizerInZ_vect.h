@@ -176,8 +176,8 @@ public:
   // data structure used to get the vertex prototypes from the gpus
   struct VertexProtoType
   {
-      std::vector<double> Vtx_proto_z_vec;
-      std::vector<double> Vtx_proto_rho_vec;
+      std::vector<double> Vtx_proto_z_vec; // z position of vertex prototype
+      std::vector<double> Vtx_proto_rho_vec; // weight of vertex prototype
   
       unsigned int getSize() const { return Vtx_proto_z_vec.size(); }
   
@@ -270,7 +270,13 @@ void normalizeRhoWithOverlaps(const std::vector<float>& blockborders)
     {
         float l = blockborders[i];
         float r = blockborders[i + 1];
-        if (l > r) std::swap(l, r);                  // auto-fix reversed pair
+        if (l > r) {
+          throw std::invalid_argument(
+              "normalizeRhoWithOverlaps: blockborders pair at indices " +
+              std::to_string(i) + "," + std::to_string(i + 1) +
+              " is reversed (left = " + std::to_string(l) +
+              ", right = " + std::to_string(r) + ')');
+      }                 // auto-fix reversed pair
         segments.push_back({l, r});
     }
 
