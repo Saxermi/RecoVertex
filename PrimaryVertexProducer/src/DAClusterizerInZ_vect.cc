@@ -1887,7 +1887,7 @@ vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
 // correct roh values
 float rohsums = 0;
  rho0 = 0.0;  // start with no outlier rejection
-beta = 0.333; // for T =3 and beta *0.9
+beta = 0.5*0.9; // for T =2 and beta *0.9
 for (unsigned int i = 0; i < combined_vertex_prototypes.getSize(); ++i) {
   rohsums += combined_vertex_prototypes.rho_vec[i];
 }

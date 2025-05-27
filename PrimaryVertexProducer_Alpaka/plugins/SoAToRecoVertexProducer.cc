@@ -321,8 +321,8 @@ void SoAToRecoVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup&
     double rho_val = hostVertexView[ivv].rho();
 
     // Always print values, even if they are NaN
-    std::cout << "== " << iV << " " << ivv << " of " << hostVertexView[0].nV() << std::endl;
-    std::cout << "iVertex " << ivv << ": z=" << z_val << ", rho=" << rho_val << std::endl;
+   // std::cout << "== " << iV << " " << ivv << " of " << hostVertexView[0].nV() << std::endl;
+   // std::cout << "iVertex " << ivv << ": z=" << z_val << ", rho=" << rho_val << std::endl;
 
     // Only push values into the prototype if neither z nor rho is NaN
     if (!std::isnan(z_val) && !std::isnan(rho_val)) {
@@ -331,10 +331,11 @@ void SoAToRecoVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup&
     }
 }
 
-for (size_t i = 0; i < prototypes.Vtx_proto_z_vec.size(); ++i) {
-  std::cout << "Prototype " << i << ": z=" << prototypes.Vtx_proto_z_vec[i]
-            << ", rho=" << prototypes.Vtx_proto_rho_vec[i] << std::endl;
-}
+//for (size_t i = 0; i < prototypes.Vtx_proto_z_vec.size(); ++i) {
+//  std::cout << "Prototype " << i << ": z=" << prototypes.Vtx_proto_z_vec[i]
+//            << ", rho=" << prototypes.Vtx_proto_rho_vec[i] << std::endl;
+//}
+/*
 // Zuerst alle mit isGood() == true
 std::cout << "Vertices with isGood() == true:" << std::endl;
 for (int iV = 0; iV < hostVertexView[0].nV(); ++iV) {
@@ -354,7 +355,7 @@ for (int iV = 0; iV < hostVertexView[0].nV(); ++iV) {
                   << ", rho=" << hostVertexView[ivv].rho() << std::endl;
     }
 }
-
+*/
 
 double rhoSum = 0.0;
 for (size_t i = 0; i < prototypes.Vtx_proto_rho_vec.size(); ++i) {
@@ -385,6 +386,10 @@ for (size_t i = 0; i < prototypes.Vtx_proto_rho_vec.size(); ++i) {
 
 //calculate blockborders
 auto block_boundaries = theTrackClusterizer->get_block_boundaries(seltks);
+
+for(auto & z : block_boundaries){
+  std::cout << "blockborders im soatorecovertex" << z << std::endl;
+}
 
 #ifdef cputime
   auto start_clustering = std::chrono::high_resolution_clock::now();
