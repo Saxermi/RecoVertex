@@ -16,6 +16,7 @@
 #include <vector>
 #include <algorithm> // used for sorting the prototypes
 #include <cmath>  // for std::isnan
+#include <numeric>  
 
 #include "DataFormats/Math/interface/Error.h"
 #include "RecoVertex/VertexTools/interface/VertexDistanceXY.h"
@@ -225,8 +226,8 @@ public:
           Vtx_proto_rho_vec = std::move(sorted_rho);
       }
   
-      void normalizeRho()
-      {
+      void normalizeRho() //depreceated, did not consider overlap in normalization
+            {
           double sum = 0.0;
           // Summe nur von gültigen (nicht NaN) Werten
           for (double val : Vtx_proto_rho_vec)
@@ -245,7 +246,67 @@ public:
               // NaN bleibt unverändert
           }
       }
+
+
+//  Robust normalisation with overlap handling
+//  * blockborders must contain an even number of elements:
+//      [z_min0, z_max0, z_min1, z_max1, ...]
+//  * Every vertex whose z is in ANY (inclusive) range gets ρ /= 2
+//  * Afterwards all finite ρ are renormalised to Σρ = 1
+// ------------------------------------------------------------
+void normalizeRhoWithOverlaps(const std::vector<float>& blockborders)
+{
+    /* ---------- sanity checks & segment construction ---------- */
+    if (blockborders.size() % 2 != 0)
+        throw std::invalid_argument(
+            "normalizeRhoWithOverlaps: blockborders must have an even number "
+            "of elements (start/end pairs).");
+
+    struct Segment { float l, r; };                  // inclusive left, right
+    std::vector<Segment> segments;
+    segments.reserve(blockborders.size() / 2);
+
+    for (std::size_t i = 0; i < blockborders.size(); i += 2)
+    {
+        float l = blockborders[i];
+        float r = blockborders[i + 1];
+        if (l > r) std::swap(l, r);                  // auto-fix reversed pair
+        segments.push_back({l, r});
+    }
+
+    /* ---------- apply ρ → ρ/2 for vertices inside any segment ---------- */
+    for (std::size_t i = 0; i < getSize(); ++i)
+    {
+        double z   = Vtx_proto_z_vec[i];
+        double rho = Vtx_proto_rho_vec[i];
+
+        if (std::isnan(z) || std::isnan(rho))       // ignore NaNs completely
+            continue;
+
+        bool inOverlap = std::any_of(segments.begin(), segments.end(),
+                                     [z](const Segment& s)
+                                     { return z >= s.l && z <= s.r; });
+
+        if (inOverlap)
+            Vtx_proto_rho_vec[i] = rho * 0.5;        // divide by two
+    }
+
+    /* ---------- renormalise finite ρ so that Σρ = 1 --------------------- */
+    const double sum = std::accumulate(
+        Vtx_proto_rho_vec.begin(), Vtx_proto_rho_vec.end(), 0.0,
+        [](double acc, double v) { return acc + (std::isnan(v) ? 0.0 : v); });
+
+    if (sum == 0.0) return;                          // nothing to do
+
+    for (double& rho : Vtx_proto_rho_vec)
+        if (!std::isnan(rho))
+            rho /= sum;
+}
+
   };
+
+
+
   DAClusterizerInZ_vect(const edm::ParameterSet &conf);
 
   std::vector<std::vector<reco::TransientTrack> > clusterize(

@@ -65,6 +65,11 @@ private:
   void produce(edm::Event&, const edm::EventSetup&) override;
   const edm::EDGetTokenT<portablevertex::VertexHostCollection> portableVertexToken_;
   const edm::EDGetTokenT<reco::TrackCollection> recoTrackToken_;
+    //trying to get blocborders
+  edm::EDGetTokenT<std::vector<float>> extraInfoToken_;
+
+  edm::Handle<std::vector<float>>       extraInfoHandle_;
+
   edm::EDGetTokenT<reco::TrackCollection> trkToken_; // can only be const when assigen i
   const edm::EDPutTokenT<reco::VertexCollection> recoVertexToken_;
   // added WE, copied from  PrimaryVertexProducer
@@ -97,6 +102,11 @@ public:
   {
     trkToken_ = consumes<reco::TrackCollection>(config.getParameter<edm::InputTag>("TrackLabel"));
     bsToken_ = consumes<reco::BeamSpot>(config.getParameter<edm::InputTag>("beamSpotLabel"));
+    //trying to get blocborders
+    extraInfoToken_ = consumes<std::vector<float>>(edm::InputTag("vertexSoA","extraInfo"));
+
+
+
     theTrackFilter = new TrackFilterForPVFinding(config.getParameter<edm::ParameterSet>("TkFilterParameters"));
     // select and configure the track selection
     std::string trackSelectionAlgorithm =
@@ -357,6 +367,7 @@ for (int iV = 0; iV < hostVertexView[0].nV(); ++iV) {
 }
 */
 
+// simple debugging sanity check
 double rhoSum = 0.0;
 for (size_t i = 0; i < prototypes.Vtx_proto_rho_vec.size(); ++i) {
     double val = prototypes.Vtx_proto_rho_vec[i];
@@ -366,8 +377,21 @@ for (size_t i = 0; i < prototypes.Vtx_proto_rho_vec.size(); ++i) {
 }
 
 std::cout << "Sum of all non-NaN rho values: " << rhoSum << std::endl;
-prototypes.normalizeRho();
+iEvent.getByToken(extraInfoToken_, extraInfoHandle_);
+
+
+
+std::cout << "************************ extra ***************************" << extraInfoHandle_->size()<< std::endl;
+for(auto f : *extraInfoHandle_){
+  std::cout << f << std::endl;
+}
+
+//prototypes.normalizeRho(); depreceated, did not consider overlap in normalization
 prototypes.sortByZ();
+prototypes.normalizeRhoWithOverlaps(*extraInfoHandle_);
+
+
+// simple debugging sanity check
 
 rhoSum = 0.0;
 for (size_t i = 0; i < prototypes.Vtx_proto_rho_vec.size(); ++i) {
@@ -376,6 +400,8 @@ for (size_t i = 0; i < prototypes.Vtx_proto_rho_vec.size(); ++i) {
         rhoSum += val;
     }
 }
+std::cout << "Sum of all non-NaN rho values after: " << rhoSum << std::endl;
+
   // carlos: sortByZ
 //for (int iV = 0; iV < vertexView[0].nV() ; iV++){
  //   printf("Vertex %i: x=%1.5f, y=%1.5f, z=%1.5f, rho=%1.5f\n",vertexView[iV].x(), vertexView[iV].y(), vertexView[iV].z(), vertexView[iV].rho());
@@ -385,11 +411,8 @@ for (size_t i = 0; i < prototypes.Vtx_proto_rho_vec.size(); ++i) {
   std::vector<reco::TransientTrack>&& seltks = theTrackFilter->select(t_tks);
 
 //calculate blockborders
-auto block_boundaries = theTrackClusterizer->get_block_boundaries(seltks);
+//auto block_boundaries = theTrackClusterizer->get_block_boundaries(seltks);
 
-for(auto & z : block_boundaries){
-  std::cout << "blockborders im soatorecovertex" << z << std::endl;
-}
 
 #ifdef cputime
   auto start_clustering = std::chrono::high_resolution_clock::now();
