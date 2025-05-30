@@ -619,6 +619,114 @@ bool DAClusterizerInZ_vect::purge(vertex_t& y, track_t& tks, double& rho0, const
   }
 }
 
+/* purge multiple clusters per call in order to accelerate the execution */
+bool DAClusterizerInZ_vect::fpurge(vertex_t& y, track_t& tks, double& rho0, const double beta) const {
+  constexpr double eps = 1.e-100;
+  const double deltaz_nopurge = 1.0; // minimum distance between purged clusters
+  // eliminate clusters with only one significant/unique track
+  const unsigned int nv = y.getSize();
+  const unsigned int nt = tks.getSize();
+
+  if (nv < 2)
+    return false;
+
+  std::vector<double> sump_v(nv), arg_cache_v(nv), exp_cache_v(nv), pcut_cache_v(nv);
+  std::vector<unsigned int> nUnique_v(nv);
+  double* __restrict__ parg_cache;
+  double* __restrict__ pexp_cache;
+  double* __restrict__ ppcut_cache;
+  double* __restrict__ psump;
+  unsigned int* __restrict__ pnUnique;
+  unsigned int constexpr nunique_min_ = 2;
+
+  set_vtx_range(beta, tks, y);
+
+  parg_cache = arg_cache_v.data();
+  pexp_cache = exp_cache_v.data();
+  ppcut_cache = pcut_cache_v.data();
+  psump = sump_v.data();
+  pnUnique = nUnique_v.data();
+
+  const auto rhoconst = rho0 * local_exp(-beta * dzCutOff_ * dzCutOff_);
+  for (unsigned int k = 0; k < nv; k++) {
+    const double pmax = y.rho[k] / (y.rho[k] + rhoconst);
+    ppcut_cache[k] = uniquetrkweight_ * pmax;
+  }
+
+  for (unsigned int i = 0; i < nt; i++) {
+  
+    const auto invZ = ((tks.sum_Z[i] > eps) && (tks.tkwt[i] > uniquetrkminp_)) ? 1. / tks.sum_Z[i] : 0.;
+    const auto track_z = tks.zpca[i];
+    const auto botrack_dz2 = -beta * tks.dz2[i];
+    const auto kmin = tks.kmin[i];
+    const auto kmax = tks.kmax[i];
+
+    for (unsigned int k = kmin; k < kmax; k++) {
+      const auto mult_resz = track_z - y.zvtx[k];
+      parg_cache[k] = botrack_dz2 * (mult_resz * mult_resz);
+    }
+
+    local_exp_list_range(parg_cache, pexp_cache, kmin, kmax);
+
+    for (unsigned int k = kmin; k < kmax; k++) {
+      const double p = y.rho[k] * pexp_cache[k] * invZ;
+      psump[k] += p;
+      pnUnique[k] += (p > ppcut_cache[k]) ? 1 : 0;
+    }
+  }
+  
+  // select purge candidates with a low number of unique tracks
+  std::vector<unsigned int> candidates;  
+  for (unsigned int k = 0; k < nv; k++) {
+    if (pnUnique[k] < nunique_min_){
+      candidates.push_back(k);
+    }
+  }
+
+  if (candidates.size() == 0) return false; // nothing to do
+  
+
+  if (candidates.size() > 1){
+      // sort by psum 
+    sort(candidates.begin(), candidates.end(), [psump](unsigned int k1, unsigned int k2){ return psump[k1] < psump[k2]; });
+    
+    // and require a minimal separation to higher priority purges
+    unsigned int idx_k = 1;  
+    while(idx_k < candidates.size()){
+      bool accept = true;
+      // compare with candidates that have already been accepted 
+      for(unsigned int idx_accepted = 0; idx_accepted < idx_k; idx_accepted++){
+	if (std::fabs(y.zvtx[candidates[idx_k]] - y.zvtx[candidates[idx_accepted]]) < deltaz_nopurge){
+	  accept = false;
+	  break;
+	}
+      }
+      if(accept){
+	idx_k++;  // keep in the list and move to the next
+      }else{
+	// remove, ik now points to the successor
+	candidates.erase(candidates.begin() + idx_k);
+      }
+    }
+  }
+  
+  
+  if (candidates.size() > 0) {
+    for(unsigned int idx = 0; idx < candidates.size(); idx++){
+      unsigned int k0 =  candidates[idx];
+
+      y.removeItem(k0, tks);
+      // adjust the remaining purge entries for the now missing index
+      for(unsigned j = idx+1; j < candidates.size(); j++){
+	if (candidates[j] > k0) candidates[j]--;
+      }
+    }
+    set_vtx_range(beta, tks, y);
+    return true;
+  }
+  return false;// should never be here
+}
+
 double DAClusterizerInZ_vect::beta0(double betamax, track_t const& tks, vertex_t const& y) const {
   double T0 = 0;  // max Tc for beta=0
   // estimate critical temperature from beta=0 (T=inf)
@@ -796,140 +904,8 @@ bool DAClusterizerInZ_vect::split(const double beta, track_t& tks, vertex_t& y, 
   return split;
 }
 
-// faster purge
-/* purge multiple clusters per call in order to accelerate the execution */
-bool DAClusterizerInZ_vect::fpurge(vertex_t& y, track_t& tks, double& rho0, const double beta) const {
-  constexpr double eps = 1.e-100;
-  const double deltaz_nopurge = 1.0; // minimum distance between purged clusters
-  // eliminate clusters with only one significant/unique track
-  const unsigned int nv = y.getSize();
-  const unsigned int nt = tks.getSize();
-
-  if (nv < 2)
-    return false;
-
-  std::vector<double> sump_v(nv), arg_cache_v(nv), exp_cache_v(nv), pcut_cache_v(nv);
-  std::vector<unsigned int> nUnique_v(nv);
-  double* __restrict__ parg_cache;
-  double* __restrict__ pexp_cache;
-  double* __restrict__ ppcut_cache;
-  double* __restrict__ psump;
-  unsigned int* __restrict__ pnUnique;
-  unsigned int constexpr nunique_min_ = 2;
-
-  set_vtx_range(beta, tks, y);
-
-  parg_cache = arg_cache_v.data();
-  pexp_cache = exp_cache_v.data();
-  ppcut_cache = pcut_cache_v.data();
-  psump = sump_v.data();
-  pnUnique = nUnique_v.data();
-
-  const auto rhoconst = rho0 * local_exp(-beta * dzCutOff_ * dzCutOff_);
-  for (unsigned int k = 0; k < nv; k++) {
-    const double pmax = y.rho[k] / (y.rho[k] + rhoconst);
-    ppcut_cache[k] = uniquetrkweight_ * pmax;
-  }
-
-  for (unsigned int i = 0; i < nt; i++) {
-    const auto invZ = ((tks.sum_Z[i] > eps) && (tks.tkwt[i] > uniquetrkminp_)) ? 1. / tks.sum_Z[i] : 0.;
-    const auto track_z = tks.zpca[i];
-    const auto botrack_dz2 = -beta * tks.dz2[i];
-    const auto kmin = tks.kmin[i];
-    const auto kmax = tks.kmax[i];
-
-    for (unsigned int k = kmin; k < kmax; k++) {
-      const auto mult_resz = track_z - y.zvtx[k];
-      parg_cache[k] = botrack_dz2 * (mult_resz * mult_resz);
-    }
-
-    local_exp_list_range(parg_cache, pexp_cache, kmin, kmax);
-
-    for (unsigned int k = kmin; k < kmax; k++) {
-      const double p = y.rho[k] * pexp_cache[k] * invZ;
-      psump[k] += p;
-      pnUnique[k] += (p > ppcut_cache[k]) ? 1 : 0;
-    }
-  }
-  
-  // select purge candidates with a low number of unique tracks
-  std::vector<unsigned int> candidates;  
-  for (unsigned int k = 0; k < nv; k++) {
-    if (pnUnique[k] < nunique_min_){
-      candidates.push_back(k);
-    }
-  }
-
-  if (candidates.size() == 0) return false; // nothing to do
-  
-
-  if (candidates.size() > 1){
-      // sort by psum 
-    sort(candidates.begin(), candidates.end(), [psump](unsigned int k1, unsigned int k2){ return psump[k1] < psump[k2]; });
-    
-    // and require a minimal separation to higher priority purges
-    unsigned int idx_k = 1;  
-    while(idx_k < candidates.size()){
-      bool accept = true;
-      // compare with candidates that have already been accepted 
-      for(unsigned int idx_accepted = 0; idx_accepted < idx_k; idx_accepted++){
-	if (std::fabs(y.zvtx[candidates[idx_k]] - y.zvtx[candidates[idx_accepted]]) < deltaz_nopurge){
-	  accept = false;
-	  break;
-	}
-      }
-      if(accept){
-	idx_k++;  // keep in the list and move to the next
-      }else{
-	// remove, ik now points to the successor
-	candidates.erase(candidates.begin() + idx_k);
-      }
-    }
-  }
-  
-  
-  if (candidates.size() > 0) {
-    for(unsigned int idx = 0; idx < candidates.size(); idx++){
-      unsigned int k0 =  candidates[idx];
-
-      y.removeItem(k0, tks);
-      // adjust the remaining purge entries for the now missing index
-      for(unsigned j = idx+1; j < candidates.size(); j++){
-	if (candidates[j] > k0) candidates[j]--;
-      }
-    }
-    set_vtx_range(beta, tks, y);
-    return true;
-  }
-  return false;// should never be here
-}
-
-
 // Standard method DA pure
 vector<TransientVertex> DAClusterizerInZ_vect::vertices_no_blocks(const vector<reco::TransientTrack>& tracks) const {
-
-  //initalize csv file
-const std::string directory = "./"; // Current directory for slurm jobs
-
-const std::string base_filename = "daten_";
-auto now = std::chrono::system_clock::now();
-std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
-std::tm* now_tm = std::localtime(&now_time_t);
-char buffer[80];
-std::strftime(buffer, sizeof(buffer), "%Y%m%d_%H%M%S", now_tm);
-std::string filename = directory + base_filename + buffer + ".csv";
-std::ofstream daten_csv(filename, std::ios::app);
-if (!daten_csv.is_open()) {
-    std::cerr << "Failed to open " << filename << std::endl;
-}
-std::ostringstream oss;
-oss << "Current date and time: " << std::asctime(now_tm) << "running the vertices in  no blocks method" << std::endl;
-oss << "Checkpoint;Time it took (microseconds); Number of clusters after checkpoint; comment" << std::endl;
-
-
-
-auto start_overall_timing = std::chrono::high_resolution_clock::now();
-// csv end
 
   track_t&& tks = fill(tracks);
   vector<TransientVertex> clusters;
@@ -954,7 +930,6 @@ auto start_overall_timing = std::chrono::high_resolution_clock::now();
 
   thermalize(beta, tks, y, delta_highT_); // Iteration at T=const, takes for-f-ever for high, till stable for clusters
 
-  // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
   double betafreeze = betamax_ * sqrt(coolingFactor_);
 
   // main loop which takes a long time for high T; this runs until stable
@@ -989,7 +964,6 @@ auto start_overall_timing = std::chrono::high_resolution_clock::now();
     update(beta, tks, y, rho0, false);
   }
 
-  // Right place?; Further cooling post spiltting to get closer to T=1, closer to Gauss-dist
   unsigned int ntry = 0;
   double threshold = 1.0;
   while (split(beta, tks, y, threshold) && (ntry++ < 10)) {
@@ -1061,7 +1035,7 @@ auto start_overall_timing = std::chrono::high_resolution_clock::now();
 #endif
 
   // eliminate insignificant vertices, this is more restrictive at higher T
-  while (fpurge(y, tks, rho0, beta)) {
+  while (purge(y, tks, rho0, beta)) {
     thermalize(beta, tks, y, delta_lowT_, rho0);
   }
 
@@ -1079,10 +1053,6 @@ auto start_overall_timing = std::chrono::high_resolution_clock::now();
     thermalize(beta, tks, y, delta_lowT_, rho0);
   }
 
-auto stop_overall_timing = std::chrono::high_resolution_clock::now();
-
-std::chrono::duration<int, std::micro> overall_time = std::chrono::duration_cast<std::chrono::microseconds>(stop_overall_timing - start_overall_timing);
-oss << "final time and size;" << overall_time.count() << ";" << y.getSize() << ";none" << std::endl;
 #ifdef DEBUG
   verify(y, tks);
   if (DEBUGLEVEL > 0) {
@@ -1093,15 +1063,11 @@ oss << "final time and size;" << overall_time.count() << ";" << y.getSize() << "
     dump(beta, y, tks, 2, rho0);
 #endif
 
-daten_csv<< oss.str();
-
-daten_csv.close();
-
   // assign tracks and fill into transient vertices
   return fill_vertices(beta, rho0, tks, y);
 }
 
-// Wolfram implementation of getting blocks, use this in vertices_in_blocks
+
 std::vector<float> DAClusterizerInZ_vect::get_block_boundaries(const std::vector<reco::TransientTrack>& tracks) const {
   /* get the block boundaries as used by vertices_in_blocks
      the code is a direct copy from that method, but does not produce tracklists,
@@ -1138,36 +1104,14 @@ std::vector<float> DAClusterizerInZ_vect::get_block_boundaries(const std::vector
   }
   return values;
 }
-
 // DA in blocks
 vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<reco::TransientTrack>& tracks) const {
-
-  //initalize csv file
-  const std::string directory = "./"; // Current directory for slurm jobs
-
-  const std::string base_filename = "daten_";
-  auto now = std::chrono::system_clock::now();
-  std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
-  std::tm* now_tm = std::localtime(&now_time_t);
-  char buffer[80];
-  std::strftime(buffer, sizeof(buffer), "%Y%m%d_%H%M%S", now_tm);
-  std::string filename = directory + base_filename + buffer + ".csv";
-  std::ofstream daten_csv(filename, std::ios::app);
-  if (!daten_csv.is_open()) {
-    std::cerr << "Failed to open " << filename << std::endl;
-  }
-  std::ostringstream oss;
-  oss << "Current date and time: " << std::asctime(now_tm) << "running the verticest in blocks method" << std::endl;
-  oss << "Checkpoint;Time it took (microseconds); Number of clusters after checkpoint; comment" << std::endl;
-
-  // csv end
 
   cout << "running in blocks" << std::endl;
 
   vector<reco::TransientTrack> sorted_tracks; // initalizes empty vectors and coppies all tracks into it
   vector<pair<float, float>> vertices_tot;    // z, rho for each vertex
-  //timing the entire thing
-  auto start_overall_timing = std::chrono::high_resolution_clock::now();
+
   // using this vector we collect all vertices protoypes form
   vertex_t combined_vertex_prototypes;
   double betasave = 0.0;
@@ -1193,7 +1137,8 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
   std::vector<std::vector<unsigned int>> blockbordervec;
   double rho0, beta; // get blocborders
-  auto blockBoundaries = get_block_boundaries(sorted_tracks);
+  auto blockBoundaries = get_block_boundaries(sorted_tracks);  
+  
   // iterates over each block defined in blocboundaries for each block it finds the range of tracks that fall into it and collects those tracks
   for (unsigned int b = 0; b < blockBoundaries.size(); b += 2)
     {
@@ -1227,19 +1172,19 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
 
       for (unsigned int i = beginIdx; i < endIdx; i++)
         {
-	        block_tracks.push_back(sorted_tracks[i]);
+	  block_tracks.push_back(sorted_tracks[i]);
         }
       if (block_tracks.empty())
         {
-	        continue;
+	  continue;
         }
 
 
-      #ifdef DEBUG
+        #ifdef DEBUG
       std::cout << "Running vertices_in_blocks on" << std::endl;
       std::cout << "- block no." << block << " on " << nBlocks << " blocks " << std::endl;
       std::cout << "- block track size: " << sorted_tracks.size() << " - block size: " << block_size_ << std::endl;
-      #endif
+        #endif
       track_t&& tks = fill(block_tracks);
       tks.extractRaw();
 
@@ -1255,39 +1200,39 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
       beta = beta0(betamax_, tks, y);
       cout << "beta before 1 loop" << beta<< std::endl;
 
-      #ifdef DEBUG
+        #ifdef DEBUG
       if (DEBUGLEVEL > 0)
-	      std::cout << "Beta0 is " << beta << std::endl;
-      #endif
+	std::cout << "Beta0 is " << beta << std::endl;
+        #endif
 
       thermalize(beta, tks, y, delta_highT_);
 
       // annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
 
-      double firstbestastop = 0.05;
+      double firstbestastop = 0.25;
       int iterations = 0;
 
 
       while (beta < firstbestastop)
         {
-          iterations++;
-          while (merge(y, tks, beta))
-                  {
-              update(beta, tks, y, rho0, false);
-                  }
-          split(beta, tks, y);
+	  iterations++;
+	  while (merge(y, tks, beta))
+            {
+	      update(beta, tks, y, rho0, false);
+            }
+	  split(beta, tks, y);
 
-          beta = beta / coolingFactor_;
-          thermalize(beta, tks, y, delta_highT_);
+	  beta = beta / coolingFactor_;
+	  thermalize(beta, tks, y, delta_highT_);
         }
       // store vertex prototypes of the processed block
       // Add the refined vertex prototypes for this block to the combined vertex prototype
       std::cout << "outputting the block clusters" << std::endl;
       for (unsigned int i = 0; i < y.getSize(); ++i)
         {
-        combined_vertex_prototypes.addItem(y.zvtx_vec[i], y.rho_vec[i]);
-        std::cout << "clusternumber::::::" << "z pos::::::" << "roh" << std::endl;
-        std::cout << i <<"::::::"<< y.zvtx_vec[i]  <<"::::::"<<y.rho_vec[i] << std::endl;
+	  combined_vertex_prototypes.addItem(y.zvtx_vec[i], y.rho_vec[i]);
+	  std::cout << "clusternumber::::::" << "z pos::::::" << "roh" << std::endl;
+	  std::cout << i <<"::::::"<< y.zvtx_vec[i]  <<"::::::"<<y.rho_vec[i] << std::endl;
         }
 
       betasave = beta;
@@ -1331,6 +1276,7 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
       combined_vertex_prototypes.rho_vec[i] = combined_vertex_prototypes.rho_vec[i] / rohsums;
     }
 
+
   // (re)defining variables to fit to classic da
   vertex_t y;  // the vertex prototypes
 
@@ -1345,32 +1291,26 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
     return clusters;
  }
 
-  // thermalization not necessary at such high temperatures
-  //trying to thermalize
-
   thermalize(beta, tks, y, delta_highT_);
   while (merge(y, tks, beta))
     {
       update(beta, tks, y, rho0, false); // check update method again wether merging done correctly
     } // merging after thermalizing
-
-
+ 
   // global annealing loop, stop when T<Tmin  (i.e. beta>1/Tmin)
-  //hardcoding beta to 0.005 not sure if this is necessary but maybe?
 
-  beta = betasave *0.9; //0.5;
+  beta = betasave *0.9;
   cout << "beta before general DA loop" << beta << std::endl;
 
-  // beta = 0.005;
-  double secondbestastop =  betamax_ * sqrt(coolingFactor_);/// betamax_ * sqrt(coolingFactor_);
+  double secondbestastop =  betamax_ * sqrt(coolingFactor_);
   cout << "betafreeze second loop" << secondbestastop << std::endl;
   cout << "made it to the second loop" << std::endl;
-  // main loop which takes a long time for high T; this runs until stable
+ 
   while (beta < secondbestastop)
     {
       while (merge(y, tks, beta))
         {
-	        update(beta, tks, y, rho0, false);
+	  update(beta, tks, y, rho0, false);
         }
       split(beta, tks, y);
       cout << "beta is" << beta << std::endl;
@@ -1379,30 +1319,25 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
       beta = beta / coolingFactor_;
       thermalize(beta, tks, y, delta_highT_);
     }
-
-
-
-
   #ifdef DEBUG
-  verify(y, tks);
+    verify(y, tks);
 
-  if (DEBUGLEVEL > 0) {
-    std::cout << "DAClusterizerInZSubCluster_vect::vertices :"
-	      << "last round of splitting" << std::endl;
-  }
+    if (DEBUGLEVEL > 0) {
+      std::cout << "DAClusterizerInZSubCluster_vect::vertices :"
+          << "last round of splitting" << std::endl;
+    }
   #endif
 
   thermalize(beta, tks, y, delta_highT_);
   while (merge(y, tks, beta))
     {
-      update(beta, tks, y, rho0, false); // check update method again wether merging done correctly
+      update(beta, tks, y, rho0, false); 
     }
 
-  // Right place?; Further cooling post spiltting to get closer to T=1, closer to Gauss-dist
   unsigned int ntry = 0;
   double threshold = 1.0;
   while (split(beta, tks, y, threshold) && (ntry++ < 10)) {
-    thermalize(beta, tks, y, delta_highT_, rho0);  // rho0 = 0. here
+    thermalize(beta, tks, y, delta_highT_, rho0);
     while (merge(y, tks, beta)) {
       update(beta, tks, y, rho0, false);
     }
@@ -1410,24 +1345,23 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
     // relax splitting a bit to reduce multiple split-merge cycles of the same cluster
     threshold *= 1.1;
   }
-
+  
   // switch on outlier rejection at T=Tmin
   if (dzCutOff_ > 0) {
     rho0 = y.getSize() > 1 ? 1. / y.getSize() : 1.;
     for (unsigned int a = 0; a < 5; a++) {
-      update(beta, tks, y, a * rho0 / 5.);  // adiabatic turn-on
+      update(beta, tks, y, a * rho0 / 5.);
     }
   }
 
   thermalize(beta, tks, y, delta_lowT_, rho0);
-
 
   // merge again (some cluster split by outliers collapse here)
   while (merge(y, tks, beta)) {
     set_vtx_range(beta, tks, y);
     update(beta, tks, y, rho0, false);
   }
-  // go down to the purging temperature (if it is lower than Tmin)
+  
   while (beta < betapurge_) {
     beta = min(beta / coolingFactor_, betapurge_);
     thermalize(beta, tks, y, delta_lowT_, rho0);
@@ -1438,24 +1372,19 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
   while (fpurge(y, tks, rho0, beta)) {
     thermalize(beta, tks, y, delta_lowT_, rho0);
   }
-
-  // optionally cool some more without doing anything, to make the track assignment harder (harder = sharper more clear)
+ 
   while (beta < betastop_) {
     beta = min(beta / coolingFactor_, betastop_);
     thermalize(beta, tks, y, delta_lowT_, rho0);
   }
-  auto stop_overall_timing = std::chrono::high_resolution_clock::now();
-
-  std::chrono::duration<int, std::micro> overall_time = std::chrono::duration_cast<std::chrono::microseconds>(stop_overall_timing - start_overall_timing);
-  oss << "final time and size;" << overall_time.count() << ";" << y.getSize() << ";none" << std::endl;
-
-  daten_csv<< oss.str();
-
-  daten_csv.close();
-  cout << "wrote csv" << y.getSize() << std::endl;
 
   return fill_vertices(beta, rho0, tks, y);
 }  // end of vertices_in_blocks
+
+
+
+
+
 
 
 vector<TransientVertex> DAClusterizerInZ_vect::fill_vertices(double beta, double rho0, track_t& tks, vertex_t& y) const {
