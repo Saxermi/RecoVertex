@@ -74,18 +74,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #endif
       // Cool down to betamax with rho = 0.0 (no regularization term)
       thermalize(acc, tracks, vertices, cParams, _osumtkwt, _beta, cParams.delta_highT(), 0.0, trackBlockSize);
-#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
+//#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[ClusterizerAlgo::operator()] BlockIdx %i, first thermalization ended\n", blockIdx);
       }
-#endif
+//#endif
       // Now the cooling loop
       coolingWhileSplitting(acc, tracks, vertices, cParams, _osumtkwt, _beta, trackBlockSize);
-#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
+//#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[ClusterizerAlgo::operator()] BlockIdx %i, cooling ended, T at stop _beta=%1.8f\n", blockIdx, _beta);
       }
-#endif
+//#endif
       // After cooling, merge closeby vertices
       reMergeTracks(acc, tracks, vertices, cParams, _osumtkwt, _beta, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_CLUSTERIZERALGO
